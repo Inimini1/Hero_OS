@@ -27,6 +27,29 @@ python3 -m http.server 8000
 All data is stored in your browser's `localStorage` — nothing leaves your
 device, and nothing requires an account or the internet.
 
+## Connecting real AI to JARVIS (optional)
+
+By default JARVIS runs in local command mode (no setup, no API key). To get
+real AI answers, run the small local backend that holds your Anthropic API
+key server-side — the key never goes in this app's frontend code:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+node server/ai-proxy.js
+# open http://localhost:8787 (this server serves the app too)
+```
+
+Then in Hero OS **Settings → AI Provider**, set the endpoint to
+`http://localhost:8787/api/chat` and turn it on. Note: because of normal
+browser cross-origin rules, JARVIS's requests only reach the proxy when you
+load Hero OS *from* that same server (`http://localhost:8787`) — not from a
+separate static server on a different port. If the proxy is unreachable or
+misconfigured, JARVIS automatically falls back to local command mode rather
+than breaking.
+
+Uses `claude-opus-5` by default; set `HERO_OS_MODEL` to something cheaper
+(e.g. `claude-haiku-4-5`) if you'd rather optimize for cost.
+
 ## Project structure
 
 - `index.html` — the page shell (header, sidebar, content area, mobile nav)
@@ -34,12 +57,15 @@ device, and nothing requires an account or the internet.
 - `js/utils.js` — small helper functions (dates, ids, escaping)
 - `js/store.js` — the only file that touches `localStorage`
 - `js/state.js` — the app's data shape + load/save
-- `js/services/ai.js` — JARVIS's brain (local fallback now, real AI provider later)
+- `js/toast.js` — the small "undo" snackbar used after deletes
+- `js/services/ai.js` — JARVIS's brain (local fallback, or calls `server/ai-proxy.js`)
 - `js/services/hardware.js` — event bus for future ESP32/gesture/sensor hardware
 - `js/services/nfc.js` — NFC action list + deep link builder
 - `js/keyboard.js` — global keyboard shortcuts
 - `js/views/*.js` — one file per screen; each owns its own data + UI
+- `js/views/modes.js` — Study/Builder/Training, each a thin re-skin of Focus or Missions
 - `js/app.js` — router and page chrome, loaded last
+- `server/ai-proxy.js` — optional local backend for real JARVIS AI answers
 
 See the project chat history for a full walkthrough of the architecture
 and what to learn next.

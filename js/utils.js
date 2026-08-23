@@ -49,6 +49,28 @@ HeroOS.utils = {
     return { text, state: 'future' };
   },
 
+  // Same as describeDueDate, but appends a time if one is set.
+  // Used anywhere a mission's due date is shown to the user.
+  describeDueDateTime(dueDateStr, dueTimeStr) {
+    const base = HeroOS.utils.describeDueDate(dueDateStr);
+    if (!dueTimeStr) return base;
+    const [h, m] = dueTimeStr.split(':').map(Number);
+    const asDate = new Date();
+    asDate.setHours(h, m, 0, 0);
+    const timeText = HeroOS.utils.formatTime(asDate);
+    // Insert the time before the trailing "(today)"/"(overdue)" tag, if any.
+    const match = base.text.match(/^(.*?)( \(.+\))?$/);
+    const text = match ? `${match[1]}, ${timeText}${match[2] || ''}` : `${base.text}, ${timeText}`;
+    return { text, state: base.state };
+  },
+
+  // Sortable key combining date + time. A mission with no specific time
+  // is treated as "due by end of day" so a same-day timed mission (e.g.
+  // a 10am lecture) still sorts ahead of it. Undated missions sort last.
+  dueSortKey(dueDateStr, dueTimeStr) {
+    return `${dueDateStr || '9999-99-99'}T${dueTimeStr || '23:59'}`;
+  },
+
   isToday(dueDateStr) {
     if (!dueDateStr) return false;
     const today = new Date().toISOString().slice(0, 10);

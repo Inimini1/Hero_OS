@@ -1,5 +1,7 @@
 // views/suitcheck.js
-// A departure checklist. Future: an NFC tag by the door triggers this view.
+// A departure checklist — now supporting several named lists (e.g.
+// "Backpack" vs "Gym Bag"), so different NFC tags/locations can each
+// point at their own checklist later.
 
 window.HeroOS = window.HeroOS || {};
 HeroOS.views = HeroOS.views || {};
@@ -7,29 +9,67 @@ HeroOS.views = HeroOS.views || {};
 HeroOS.views.suitcheck = {
   // ---- data layer ----
 
-  addItem(name) {
+  _activeList() {
+    const sc = HeroOS.state.current.suitCheck;
+    return sc.lists.find((l) => l.id === sc.activeListId) || sc.lists[0];
+  },
+
+  // Public accessor — used by services/ai.js so JARVIS can answer
+  // "suit check" without reaching into this view's internals.
+  getActiveList() {
+    return this._activeList();
+  },
+
+  addList(name) {
     const s = HeroOS.state.current;
-    s.suitCheck.items.push({ id: HeroOS.utils.uid('item'), name: name.trim(), checked: false });
+    const list = { id: HeroOS.utils.uid('list'), name: name.trim(), items: [] };
+    s.suitCheck.lists.push(list);
+    s.suitCheck.activeListId = list.id;
+    HeroOS.state.save();
+  },
+
+  renameList(id, name) {
+    const list = HeroOS.state.current.suitCheck.lists.find((l) => l.id === id);
+    if (!list || !name.trim()) return;
+    list.name = name.trim();
+    HeroOS.state.save();
+  },
+
+  deleteList(id) {
+    const s = HeroOS.state.current;
+    if (s.suitCheck.lists.length <= 1) return; // always keep at least one list
+    s.suitCheck.lists = s.suitCheck.lists.filter((l) => l.id !== id);
+    if (s.suitCheck.activeListId === id) {
+      s.suitCheck.activeListId = s.suitCheck.lists[0].id;
+    }
+    HeroOS.state.save();
+  },
+
+  setActiveList(id) {
+    HeroOS.state.current.suitCheck.activeListId = id;
+    HeroOS.state.save();
+  },
+
+  addItem(name) {
+    this._activeList().items.push({ id: HeroOS.utils.uid('item'), name: name.trim(), checked: false });
     HeroOS.state.save();
   },
 
   removeItem(id) {
-    const s = HeroOS.state.current;
-    s.suitCheck.items = s.suitCheck.items.filter((i) => i.id !== id);
+    const list = this._activeList();
+    list.items = list.items.filter((i) => i.id !== id);
     HeroOS.state.save();
   },
 
   toggleItem(id) {
-    const s = HeroOS.state.current;
-    const item = s.suitCheck.items.find((i) => i.id === id);
+    const item = this._activeList().items.find((i) => i.id === id);
     if (!item) return;
     item.checked = !item.checked;
     HeroOS.state.save();
   },
 
   moveItem(id, direction) {
-    const s = HeroOS.state.current;
-    const items = s.suitCheck.items;
+    const items = this._activeList().items;
     const index = items.findIndex((i) => i.id === id);
     const target = index + direction;
     if (target < 0 || target >= items.length) return;
@@ -38,8 +78,7 @@ HeroOS.views.suitcheck = {
   },
 
   resetChecks() {
-    const s = HeroOS.state.current;
-    s.suitCheck.items.forEach((i) => (i.checked = false));
+    this._activeList().items.forEach((i) => (i.checked = false));
     HeroOS.state.save();
   },
 
@@ -48,11 +87,23 @@ HeroOS.views.suitcheck = {
   render(root) {
     const s = HeroOS.state.current;
     const { escapeHtml } = HeroOS.utils;
-    const items = s.suitCheck.items;
+    const list = this._activeList();
+    const items = list.items;
     const allChecked = items.length > 0 && items.every((i) => i.checked);
 
     root.innerHTML = `
       <div class="view-header"><h1>Suit Check</h1></div>
+
+      <div class="toolbar suit-list-switcher">
+        <select id="suit-list-select">
+          ${s.suitCheck.lists
+            .map((l) => `<option value="${l.id}" ${l.id === list.id ? 'selected' : ''}>${escapeHtml(l.name)}</option>`)
+            .join('')}
+        </select>
+        <button class="btn btn-small" id="suit-list-add">+ New List</button>
+        <button class="btn btn-small" id="suit-list-rename">Rename</button>
+        <button class="btn btn-small danger-btn" id="suit-list-delete" ${s.suitCheck.lists.length <= 1 ? 'disabled' : ''}>Delete List</button>
+      </div>
 
       <section class="panel ${allChecked ? 'ready-panel' : ''}">
         <div class="ready-status">${allChecked ? 'READY' : `${items.filter((i) => i.checked).length} / ${items.length} checked`}</div>
@@ -88,10 +139,36 @@ HeroOS.views.suitcheck = {
       </section>
     `;
 
-    this._attachEvents(root);
+    this._attachEvents(root, list);
   },
 
-  _attachEvents(root) {
+  _attachEvents(root, list) {
+    root.querySelector('#suit-list-select').addEventListener('change', (e) => {
+      this.setActiveList(e.target.value);
+      this.render(root);
+    });
+    root.querySelector('#suit-list-add').addEventListener('click', () => {
+      const name = prompt('Name for the new checklist:', '');
+      if (name && name.trim()) {
+        this.addList(name);
+        this.render(root);
+      }
+    });
+    root.querySelector('#suit-list-rename').addEventListener('click', () => {
+      const name = prompt('Rename this checklist:', list.name);
+      if (name && name.trim()) {
+        this.renameList(list.id, name);
+        this.render(root);
+      }
+    });
+    root.querySelector('#suit-list-delete').addEventListener('click', () => {
+      if (HeroOS.state.current.suitCheck.lists.length <= 1) return;
+      if (confirm(`Delete the "${list.name}" checklist? This cannot be undone.`)) {
+        this.deleteList(list.id);
+        this.render(root);
+      }
+    });
+
     root.querySelectorAll('.suit-item').forEach((row) => {
       const id = row.dataset.id;
       row.querySelector('[data-action="toggle"]').addEventListener('change', () => {

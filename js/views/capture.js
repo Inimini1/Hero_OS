@@ -34,6 +34,44 @@ HeroOS.views.capture = {
     HeroOS.state.save();
   },
 
+  // Removes a capture immediately, but shows an undo toast instead of
+  // a blocking confirm() dialog.
+  _deleteWithUndo(root, id) {
+    const s = HeroOS.state.current;
+    const index = s.captures.findIndex((c) => c.id === id);
+    if (index === -1) return;
+    const removed = s.captures[index];
+
+    s.captures.splice(index, 1);
+    HeroOS.state.save();
+    this.render(root);
+
+    HeroOS.toast.show('Deleted capture', {
+      onAction: () => {
+        s.captures.splice(index, 0, removed);
+        HeroOS.state.save();
+        this.render(root);
+      },
+    });
+  },
+
+  // Turns a capture into a Mission with one click. The capture itself
+  // is left in place — this is additive, not destructive.
+  convertToMission(id) {
+    const s = HeroOS.state.current;
+    const capture = s.captures.find((c) => c.id === id);
+    if (!capture) return;
+    const firstLine = capture.text.split('\n')[0];
+    const title = firstLine.length > 100 ? firstLine.slice(0, 100) + '…' : firstLine;
+    const categoryMap = { School: 'College', Business: 'Business' };
+    HeroOS.views.missions.addMission({
+      title,
+      description: capture.text,
+      category: categoryMap[capture.category] || 'Personal',
+      tags: capture.tags,
+    });
+  },
+
   // ---- UI layer ----
 
   render(root) {
@@ -94,6 +132,9 @@ HeroOS.views.capture = {
         </div>
         <div class="capture-row-text">${escapeHtml(c.text)}</div>
         ${c.tags && c.tags.length ? `<div class="capture-row-tags">${c.tags.map((t) => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+        <div class="capture-row-actions">
+          <button class="btn btn-small" data-action="convert" title="Create a Mission from this capture">To Mission</button>
+        </div>
         <button class="danger-btn capture-delete" data-action="delete" title="Delete">✕</button>
       </li>
     `;
@@ -134,11 +175,19 @@ HeroOS.views.capture = {
     });
 
     root.querySelectorAll('.capture-row').forEach((row) => {
+      const id = row.dataset.id;
       row.querySelector('[data-action="delete"]').addEventListener('click', () => {
-        if (confirm('Delete this capture?')) {
-          this.deleteCapture(row.dataset.id);
-          this.render(root);
-        }
+        this._deleteWithUndo(root, id);
+      });
+      row.querySelector('[data-action="convert"]').addEventListener('click', (e) => {
+        this.convertToMission(id);
+        const btn = e.target;
+        btn.textContent = 'Added ✓';
+        btn.disabled = true;
+        HeroOS.toast.show('Mission created', {
+          actionLabel: 'View Missions',
+          onAction: () => HeroOS.app.navigate('#/missions'),
+        });
       });
     });
   },

@@ -45,10 +45,14 @@ HeroOS.app = {
     '#/portal': { title: 'Portal', view: () => HeroOS.views.portal },
     '#/detective': { title: 'Detective Mode', view: () => HeroOS.views.detective },
     '#/settings': { title: 'Settings', view: () => HeroOS.views.settings },
+    '#/study': { title: 'Study Mode', view: () => HeroOS.views.study },
+    '#/builder': { title: 'Builder Mode', view: () => HeroOS.views.builder },
+    '#/training': { title: 'Training Mode', view: () => HeroOS.views.training },
   },
 
   init() {
     HeroOS.state.init();
+    HeroOS.views.focus.checkForElapsedSession();
     this.applyTheme();
     this.renderChrome();
     HeroOS.keyboard.init();
@@ -112,6 +116,13 @@ HeroOS.app = {
     const view = document.getElementById('view');
     entry.view().render(view);
     view.scrollTop = 0;
+
+    // Subtle fade so a view swap doesn't feel like a hard cut.
+    // Restarting a CSS animation requires a reflow between removing
+    // and re-adding the class — the offsetWidth read forces that.
+    view.classList.remove('view-fade-in');
+    void view.offsetWidth;
+    view.classList.add('view-fade-in');
   },
 
   navigate(route) {

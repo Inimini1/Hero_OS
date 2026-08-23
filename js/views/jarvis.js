@@ -58,12 +58,13 @@ HeroOS.views.jarvis = {
     const text = input.value.trim();
     if (!text || this._sending) return;
 
+    const history = this._messages.slice(); // before the new message is added
     this._messages.push({ role: 'user', text });
     input.value = '';
     this._sending = true;
     this.render(root);
 
-    const reply = await HeroOS.services.ai.sendMessage(text);
+    const reply = await HeroOS.services.ai.sendMessage(text, history);
     this._messages.push({ role: 'jarvis', text: reply });
     this._sending = false;
     this.render(root);

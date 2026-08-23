@@ -9,15 +9,17 @@ HeroOS.views = HeroOS.views || {};
 HeroOS.views.briefing = {
   render(root) {
     const s = HeroOS.state.current;
-    const { escapeHtml, isToday } = HeroOS.utils;
+    const { escapeHtml, isToday, dueSortKey, describeDueDateTime } = HeroOS.utils;
     const now = new Date();
 
     const primary = s.missions.find((m) => m.id === s.primaryMissionId && !m.completed);
     const active = s.missions.filter((m) => !m.completed);
-    const todays = active.filter((m) => isToday(m.dueDate));
+    const todays = active
+      .filter((m) => isToday(m.dueDate))
+      .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)));
     const upcoming = active
       .filter((m) => m.dueDate && !isToday(m.dueDate))
-      .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
+      .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)))
       .slice(0, 5);
 
     const todayStr = HeroOS.utils.todayStr();
@@ -52,7 +54,7 @@ HeroOS.views.briefing = {
         ${
           upcoming.length
             ? `<ul class="mini-list">${upcoming
-                .map((m) => `<li>${escapeHtml(m.title)} &mdash; ${HeroOS.utils.describeDueDate(m.dueDate).text}</li>`)
+                .map((m) => `<li>${escapeHtml(m.title)} &mdash; ${describeDueDateTime(m.dueDate, m.dueTime).text}</li>`)
                 .join('')}</ul>`
             : `<p class="empty-inline">Nothing scheduled.</p>`
         }

@@ -10,10 +10,11 @@ HeroOS.views.missions = {
   _filterStatus: 'active',
   _sortBy: 'due',
   _editingId: null,
+  _modeOptions: {},
 
   // ---- data layer ----
 
-  addMission({ title, description = '', category = 'Personal', priority = 'normal', dueDate = '', tags = [] }) {
+  addMission({ title, description = '', category = 'Personal', priority = 'normal', dueDate = '', dueTime = '', tags = [] }) {
     const s = HeroOS.state.current;
     const mission = {
       id: HeroOS.utils.uid('m'),
@@ -22,6 +23,7 @@ HeroOS.views.missions = {
       category,
       priority,
       dueDate,
+      dueTime,
       tags,
       completed: false,
       createdAt: HeroOS.utils.nowISO(),
@@ -47,6 +49,30 @@ HeroOS.views.missions = {
     HeroOS.state.save();
   },
 
+  // Removes a mission immediately but keeps enough info to restore it,
+  // and shows an undo toast instead of a blocking confirm() dialog.
+  _deleteWithUndo(root, id) {
+    const s = HeroOS.state.current;
+    const index = s.missions.findIndex((m) => m.id === id);
+    if (index === -1) return;
+    const removed = s.missions[index];
+    const wasPrimary = s.primaryMissionId === id;
+
+    s.missions.splice(index, 1);
+    if (wasPrimary) s.primaryMissionId = null;
+    HeroOS.state.save();
+    this.render(root, this._modeOptions);
+
+    HeroOS.toast.show(`Deleted "${removed.title}"`, {
+      onAction: () => {
+        s.missions.splice(index, 0, removed);
+        if (wasPrimary) s.primaryMissionId = removed.id;
+        HeroOS.state.save();
+        this.render(root, this._modeOptions);
+      },
+    });
+  },
+
   toggleComplete(id) {
     const s = HeroOS.state.current;
     const mission = s.missions.find((m) => m.id === id);
@@ -63,18 +89,29 @@ HeroOS.views.missions = {
 
   // ---- UI layer ----
 
-  render(root) {
+  // `options` lets a "mode" screen (see views/modes.js) reuse this same
+  // list with a different heading and a category locked in, instead of
+  // duplicating the whole mission list UI.
+  render(root, options) {
+    this._modeOptions = options || {};
     const s = HeroOS.state.current;
-    const { escapeHtml, describeDueDate } = HeroOS.utils;
+    const { escapeHtml } = HeroOS.utils;
+    const lockedCategories = this._modeOptions.lockedCategory
+      ? [].concat(this._modeOptions.lockedCategory)
+      : null;
 
     let list = [...s.missions];
     if (this._filterStatus === 'active') list = list.filter((m) => !m.completed);
     if (this._filterStatus === 'completed') list = list.filter((m) => m.completed);
-    if (this._filterCategory !== 'all') list = list.filter((m) => m.category === this._filterCategory);
+    if (lockedCategories) {
+      list = list.filter((m) => lockedCategories.includes(m.category));
+    } else if (this._filterCategory !== 'all') {
+      list = list.filter((m) => m.category === this._filterCategory);
+    }
 
     const priorityRank = { high: 0, normal: 1, low: 2 };
     if (this._sortBy === 'due') {
-      list.sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+      list.sort((a, b) => HeroOS.utils.dueSortKey(a.dueDate, a.dueTime).localeCompare(HeroOS.utils.dueSortKey(b.dueDate, b.dueTime)));
     } else if (this._sortBy === 'priority') {
       list.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority]);
     } else if (this._sortBy === 'created') {
@@ -87,7 +124,7 @@ HeroOS.views.missions = {
 
     root.innerHTML = `
       <div class="view-header">
-        <h1>Missions</h1>
+        <h1>${escapeHtml(this._modeOptions.title || 'Missions')}</h1>
         <button class="btn btn-primary" id="mission-new-btn">+ New Mission</button>
       </div>
 
@@ -99,12 +136,16 @@ HeroOS.views.missions = {
           <option value="completed" ${this._filterStatus === 'completed' ? 'selected' : ''}>Completed</option>
           <option value="all" ${this._filterStatus === 'all' ? 'selected' : ''}>All</option>
         </select>
-        <select id="filter-category">
-          <option value="all">All categories</option>
-          ${s.settings.missionCategories
-            .map((c) => `<option value="${escapeHtml(c)}" ${this._filterCategory === c ? 'selected' : ''}>${escapeHtml(c)}</option>`)
-            .join('')}
-        </select>
+        ${
+          lockedCategories
+            ? ''
+            : `<select id="filter-category">
+                <option value="all">All categories</option>
+                ${s.settings.missionCategories
+                  .map((c) => `<option value="${escapeHtml(c)}" ${this._filterCategory === c ? 'selected' : ''}>${escapeHtml(c)}</option>`)
+                  .join('')}
+              </select>`
+        }
         <select id="sort-by">
           <option value="due" ${this._sortBy === 'due' ? 'selected' : ''}>Sort: Due date</option>
           <option value="priority" ${this._sortBy === 'priority' ? 'selected' : ''}>Sort: Priority</option>
@@ -125,8 +166,8 @@ HeroOS.views.missions = {
   },
 
   _missionRow(m, categoryOptions) {
-    const { escapeHtml, describeDueDate } = HeroOS.utils;
-    const due = describeDueDate(m.dueDate);
+    const { escapeHtml, describeDueDateTime } = HeroOS.utils;
+    const due = describeDueDateTime(m.dueDate, m.dueTime);
     const isPrimary = m.id === HeroOS.state.current.primaryMissionId;
     return `
       <li class="mission-row ${m.completed ? 'is-completed' : ''} ${isPrimary ? 'is-primary' : ''}" data-id="${m.id}">
@@ -161,36 +202,36 @@ HeroOS.views.missions = {
 
     root.querySelector('#filter-status').addEventListener('change', (e) => {
       this._filterStatus = e.target.value;
-      this.render(root);
+      this.render(root, this._modeOptions);
     });
-    root.querySelector('#filter-category').addEventListener('change', (e) => {
-      this._filterCategory = e.target.value;
-      this.render(root);
-    });
+    const categoryFilterEl = root.querySelector('#filter-category');
+    if (categoryFilterEl) {
+      categoryFilterEl.addEventListener('change', (e) => {
+        this._filterCategory = e.target.value;
+        this.render(root, this._modeOptions);
+      });
+    }
     root.querySelector('#sort-by').addEventListener('change', (e) => {
       this._sortBy = e.target.value;
-      this.render(root);
+      this.render(root, this._modeOptions);
     });
 
     root.querySelectorAll('.mission-row').forEach((row) => {
       const id = row.dataset.id;
       row.querySelector('[data-action="toggle"]').addEventListener('click', () => {
         this.toggleComplete(id);
-        this.render(root);
+        this.render(root, this._modeOptions);
       });
       row.querySelector('[data-action="primary"]').addEventListener('click', () => {
         this.setPrimary(id);
-        this.render(root);
+        this.render(root, this._modeOptions);
       });
       row.querySelector('[data-action="edit"]').addEventListener('click', () => {
         this._editingId = id;
         this._renderForm(root, categoryOptions);
       });
       row.querySelector('[data-action="delete"]').addEventListener('click', () => {
-        if (confirm('Delete this mission? This cannot be undone.')) {
-          this.deleteMission(id);
-          this.render(root);
-        }
+        this._deleteWithUndo(root, id);
       });
     });
   },
@@ -224,6 +265,9 @@ HeroOS.views.missions = {
           <label>Due date
             <input type="date" name="dueDate" value="${editing ? editing.dueDate || '' : ''}">
           </label>
+          <label>Due time
+            <input type="time" name="dueTime" value="${editing ? editing.dueTime || '' : ''}">
+          </label>
         </div>
         <label>Tags (comma separated)
           <input type="text" name="tags" value="${editing && editing.tags ? escapeHtml(editing.tags.join(', ')) : ''}" placeholder="e.g. urgent, group-project">
@@ -235,10 +279,11 @@ HeroOS.views.missions = {
       </form>
     `;
 
-    if (editing) {
-      wrap.querySelector('select[name="category"]').value = editing.category;
-      wrap.querySelector('select[name="priority"]').value = editing.priority;
-    }
+    const defaultCategory = editing
+      ? editing.category
+      : ([].concat(this._modeOptions.lockedCategory || []))[0];
+    if (defaultCategory) wrap.querySelector('select[name="category"]').value = defaultCategory;
+    if (editing) wrap.querySelector('select[name="priority"]').value = editing.priority;
 
     wrap.querySelector('#mission-form-cancel').addEventListener('click', () => {
       this._editingId = null;
@@ -254,6 +299,7 @@ HeroOS.views.missions = {
         category: fd.get('category'),
         priority: fd.get('priority'),
         dueDate: fd.get('dueDate'),
+        dueTime: fd.get('dueTime'),
         tags: HeroOS.utils.parseTags(fd.get('tags')),
       };
       if (!data.title) return;
@@ -264,7 +310,7 @@ HeroOS.views.missions = {
         this.addMission(data);
       }
       this._editingId = null;
-      this.render(root);
+      this.render(root, this._modeOptions);
     });
 
     wrap.querySelector('input[name="title"]').focus();

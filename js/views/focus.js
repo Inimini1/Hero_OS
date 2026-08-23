@@ -1,8 +1,10 @@
 // views/focus.js
-// A minimal countdown timer. Session state (running/paused/remaining)
-// lives only in memory — refreshing the page resets an in-progress
-// timer, which keeps this simple and matches "distraction-free."
-// Completed sessions ARE saved permanently, in state.focusSessions.
+// A countdown timer. Unlike V1, an in-progress session now survives a
+// page refresh: while running, we persist an end timestamp
+// (state.activeFocus) instead of just an in-memory countdown. On the
+// next load we recompute the remaining time from that timestamp rather
+// than trusting a stored "seconds left" number, which would freeze
+// while the page was closed.
 
 window.HeroOS = window.HeroOS || {};
 HeroOS.views = HeroOS.views || {};
@@ -14,6 +16,8 @@ HeroOS.views.focus = {
   _intervalId: null,
   _missionId: '',
   _justCompleted: false,
+  _title: 'Focus Mode',
+  _lockedCategory: null,
 
   // ---- data layer ----
 
@@ -31,18 +35,59 @@ HeroOS.views.focus = {
     HeroOS.state.save();
   },
 
-  // ---- UI layer ----
-
-  render(root) {
+  // Called once at app startup (see app.js init), before any view has
+  // rendered. If a session was running and its time fully elapsed while
+  // the app was closed, record it now so dashboard stats are correct
+  // immediately — the user shouldn't have to open Focus Mode first.
+  checkForElapsedSession() {
     const s = HeroOS.state.current;
-    const { escapeHtml } = HeroOS.utils;
+    const af = s.activeFocus;
+    if (af && af.running && af.endAt <= Date.now()) {
+      const minutes = Math.round(af.totalSeconds / 60);
+      s.activeFocus = null;
+      this.recordSession(minutes, af.missionId);
+    }
+  },
 
-    if (this._remainingSeconds === null) {
+  // Rebuilds this screen's in-memory timer from whatever was persisted
+  // (or starts fresh, if nothing was in progress). Only runs once per
+  // page load — see the "firstRenderThisLoad" check in render().
+  _restoreFromPersisted() {
+    const s = HeroOS.state.current;
+    const af = s.activeFocus;
+    if (!af) {
       this._totalSeconds = s.settings.focusDurationMinutes * 60;
       this._remainingSeconds = this._totalSeconds;
+      return;
+    }
+    this._totalSeconds = af.totalSeconds;
+    this._missionId = af.missionId || '';
+    if (af.running) {
+      this._remainingSeconds = Math.max(1, Math.round((af.endAt - Date.now()) / 1000));
+      this._running = true;
+    } else {
+      this._remainingSeconds = af.remainingSeconds;
+      this._running = false;
+    }
+  },
+
+  // ---- UI layer ----
+
+  render(root, options) {
+    const s = HeroOS.state.current;
+    const { escapeHtml } = HeroOS.utils;
+    options = options || {};
+    this._title = options.title || 'Focus Mode';
+    this._lockedCategory = options.lockedCategory || null;
+
+    const firstRenderThisLoad = this._remainingSeconds === null;
+    if (firstRenderThisLoad) {
+      this._restoreFromPersisted();
     }
 
-    const activeMissions = s.missions.filter((m) => !m.completed);
+    const activeMissions = s.missions
+      .filter((m) => !m.completed)
+      .filter((m) => !this._lockedCategory || m.category === this._lockedCategory);
     const todayStr = HeroOS.utils.todayStr();
     const todaySessions = s.focusSessions.filter((f) => f.date === todayStr);
     const totalMinutesToday = todaySessions.reduce((sum, f) => sum + f.minutes, 0);
@@ -53,9 +98,10 @@ HeroOS.views.focus = {
     const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
     root.innerHTML = `
-      <div class="view-header"><h1>Focus Mode</h1></div>
+      <div class="view-header"><h1>${escapeHtml(this._title || 'Focus Mode')}</h1></div>
 
       ${this._justCompleted ? `<div class="panel completion-banner">Session complete. Well done, ${escapeHtml(s.settings.userName)}.</div>` : ''}
+      ${this._running && firstRenderThisLoad ? `<div class="panel notice-panel">Resumed your in-progress session.</div>` : ''}
 
       <section class="panel focus-panel">
         <div class="focus-timer" role="timer" aria-live="polite">${timeStr}</div>
@@ -105,6 +151,10 @@ HeroOS.views.focus = {
     `;
 
     this._attachEvents(root);
+
+    if (firstRenderThisLoad && this._running) {
+      this._startInterval(root);
+    }
   },
 
   _attachEvents(root) {
@@ -119,7 +169,9 @@ HeroOS.views.focus = {
         const mins = HeroOS.utils.clamp(parseInt(durationInput.value, 10) || 25, 1, 180);
         this._totalSeconds = mins * 60;
         this._remainingSeconds = mins * 60;
-        this.render(root);
+        HeroOS.state.current.activeFocus = null;
+        HeroOS.state.save();
+        this.render(root, this._modeOptions());
       });
     }
     if (missionSelect) {
@@ -136,10 +188,14 @@ HeroOS.views.focus = {
     resetBtn.addEventListener('click', () => this._reset(root));
   },
 
-  _start(root) {
-    this._running = true;
-    this._justCompleted = false;
-    this.render(root);
+  // Internal re-renders (start/pause/reset/complete) need to keep
+  // whatever mode context (title + locked category) is currently active.
+  _modeOptions() {
+    return { title: this._title, lockedCategory: this._lockedCategory };
+  },
+
+  _startInterval(root) {
+    clearInterval(this._intervalId);
     this._intervalId = setInterval(() => {
       this._remainingSeconds--;
       if (this._remainingSeconds <= 0) {
@@ -155,10 +211,31 @@ HeroOS.views.focus = {
     }, 1000);
   },
 
+  _start(root) {
+    this._running = true;
+    this._justCompleted = false;
+    HeroOS.state.current.activeFocus = {
+      totalSeconds: this._totalSeconds,
+      missionId: this._missionId,
+      endAt: Date.now() + this._remainingSeconds * 1000,
+      running: true,
+    };
+    HeroOS.state.save();
+    this.render(root, this._modeOptions());
+    this._startInterval(root);
+  },
+
   _pause(root) {
     this._running = false;
     clearInterval(this._intervalId);
-    this.render(root);
+    HeroOS.state.current.activeFocus = {
+      totalSeconds: this._totalSeconds,
+      missionId: this._missionId,
+      remainingSeconds: this._remainingSeconds,
+      running: false,
+    };
+    HeroOS.state.save();
+    this.render(root, this._modeOptions());
   },
 
   _reset(root) {
@@ -166,16 +243,19 @@ HeroOS.views.focus = {
     this._running = false;
     this._remainingSeconds = this._totalSeconds;
     this._justCompleted = false;
-    this.render(root);
+    HeroOS.state.current.activeFocus = null;
+    HeroOS.state.save();
+    this.render(root, this._modeOptions());
   },
 
   _complete(root) {
     clearInterval(this._intervalId);
     this._running = false;
     const minutes = Math.round(this._totalSeconds / 60);
+    HeroOS.state.current.activeFocus = null;
     this.recordSession(minutes, this._missionId);
     this._remainingSeconds = this._totalSeconds;
     this._justCompleted = true;
-    this.render(root);
+    this.render(root, this._modeOptions());
   },
 };

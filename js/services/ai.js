@@ -1,40 +1,39 @@
 // services/ai.js
 // JARVIS's "brain" lives behind this one function: sendMessage().
 //
-// V1 has no real AI provider connected (on purpose — no API keys belong
-// in frontend code, ever). Instead this runs a tiny local rule-based
-// responder so JARVIS is still a little useful.
-//
-// HOW TO CONNECT A REAL AI PROVIDER LATER:
-//   1. Build a small backend (even a single serverless function) that
-//      holds your API key and forwards requests to your AI provider.
-//   2. Set HeroOS.state.current.settings.aiProvider = { endpoint: 'https://your-backend/chat' }
-//   3. Replace the body of sendMessage() below with a fetch() call to
-//      that endpoint. The rest of the app (jarvis.js) doesn't need to change
-//      at all — it only calls HeroOS.services.ai.sendMessage().
+// By default there's no AI provider connected — instead this runs a
+// small local rule-based responder so JARVIS is still useful with zero
+// setup. To get real AI answers, run the small local backend in
+// server/ai-proxy.js (it holds your API key server-side — never in this
+// frontend code) and point Settings > AI Provider at it. See that file
+// for setup instructions.
 
 window.HeroOS = window.HeroOS || {};
 HeroOS.services = HeroOS.services || {};
 
 HeroOS.services.ai = {
   isConfigured() {
-    return !!(HeroOS.state.current.settings.aiProvider &&
-      HeroOS.state.current.settings.aiProvider.endpoint);
+    const ap = HeroOS.state.current.settings.aiProvider;
+    return !!(ap && ap.endpoint && ap.enabled);
   },
 
-  // Returns a Promise<string> so a real network call slots in with no
-  // changes to the caller.
-  async sendMessage(message) {
+  // Returns a Promise<string>. `history` is the prior chat messages
+  // ({role, text}[]) so a real backend has conversation context.
+  async sendMessage(message, history) {
     if (this.isConfigured()) {
-      // Placeholder for the future real call. Left unimplemented on
-      // purpose until an actual backend endpoint exists.
-      // const res = await fetch(HeroOS.state.current.settings.aiProvider.endpoint, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ message }),
-      // });
-      // const data = await res.json();
-      // return data.reply;
+      try {
+        const res = await fetch(HeroOS.state.current.settings.aiProvider.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history: history || [] }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || `Server responded ${res.status}`);
+        return data.reply;
+      } catch (err) {
+        console.error('Hero OS: AI provider request failed, falling back to local commands.', err);
+        return `(Couldn't reach the AI provider: ${err.message}. Falling back to local command mode.)\n\n` + this._localFallback(message);
+      }
     }
     return this._localFallback(message);
   },
@@ -48,7 +47,7 @@ HeroOS.services.ai = {
     const name = s.settings.userName || 'Hero';
 
     if (/^(hi|hello|hey)\b/.test(lower)) {
-      return `Hello, ${name}. Local command mode is active — try "today", "primary", or "add mission: <title>".`;
+      return `Hello, ${name}. Local command mode is active — try "today", "primary", "suit check", "captures today", or "add mission: <title>".`;
     }
 
     if (lower.includes('time')) {
@@ -72,6 +71,23 @@ HeroOS.services.ai = {
       return 'Due today: ' + todays.map((m) => m.title).join(', ');
     }
 
+    if (lower.includes('suit check') || lower.includes('suitcheck')) {
+      const list = HeroOS.views.suitcheck.getActiveList();
+      const checked = list.items.filter((i) => i.checked).length;
+      if (list.items.length === 0) return `Your "${list.name}" checklist is empty.`;
+      if (checked === list.items.length) return `"${list.name}" checklist: READY — everything's checked.`;
+      const missing = list.items.filter((i) => !i.checked).map((i) => i.name);
+      return `"${list.name}" checklist: ${checked}/${list.items.length} checked. Still need: ${missing.join(', ')}.`;
+    }
+
+    if (lower.includes('capture')) {
+      const todayStr = HeroOS.utils.todayStr();
+      const todaysCaptures = s.captures.filter((c) => c.timestamp.slice(0, 10) === todayStr);
+      if (todaysCaptures.length === 0) return 'No captures yet today.';
+      return `${todaysCaptures.length} capture${todaysCaptures.length === 1 ? '' : 's'} today: ` +
+        todaysCaptures.map((c) => `"${c.text.slice(0, 40)}${c.text.length > 40 ? '…' : ''}"`).join(', ');
+    }
+
     const addMatch = text.match(/^add mission:\s*(.+)$/i);
     if (addMatch && addMatch[1]) {
       const title = addMatch[1].trim();
@@ -81,7 +97,7 @@ HeroOS.services.ai = {
 
     return (
       'Local command mode: I can\'t reason freely yet (no AI provider connected). ' +
-      'Try "today", "primary", "time", "date", or "add mission: <title>". ' +
+      'Try "today", "primary", "suit check", "captures today", "time", "date", or "add mission: <title>". ' +
       'Connect a real AI provider anytime in Settings.'
     );
   },

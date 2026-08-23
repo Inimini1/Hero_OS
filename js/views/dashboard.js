@@ -8,19 +8,21 @@ HeroOS.views = HeroOS.views || {};
 HeroOS.views.dashboard = {
   render(root) {
     const s = HeroOS.state.current;
-    const { escapeHtml, describeDueDate, isToday } = HeroOS.utils;
+    const { escapeHtml, describeDueDateTime, isToday, dueSortKey } = HeroOS.utils;
 
     const primary = s.missions.find((m) => m.id === s.primaryMissionId && !m.completed);
 
     const active = s.missions.filter((m) => !m.completed);
-    const todays = active.filter((m) => isToday(m.dueDate));
+    const todays = active
+      .filter((m) => isToday(m.dueDate))
+      .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)));
     const upcoming = active
       .filter((m) => m.dueDate && !isToday(m.dueDate))
-      .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
+      .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)))
       .slice(0, 4);
     const next = active
       .filter((m) => m.id !== (primary && primary.id))
-      .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))[0];
+      .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)))[0];
 
     const todayStr = HeroOS.utils.todayStr();
     const focusToday = s.focusSessions.filter((f) => f.date === todayStr);
@@ -36,11 +38,11 @@ HeroOS.views.dashboard = {
             ? `<h2 class="primary-mission-title">${escapeHtml(primary.title)}</h2>
                <div class="primary-mission-meta">
                  <span class="badge badge-${primary.category.toLowerCase()}">${escapeHtml(primary.category)}</span>
-                 <span class="due due-${describeDueDate(primary.dueDate).state}">${describeDueDate(primary.dueDate).text}</span>
+                 <span class="due due-${describeDueDateTime(primary.dueDate, primary.dueTime).state}">${describeDueDateTime(primary.dueDate, primary.dueTime).text}</span>
                </div>`
             : `<p class="empty-inline">No Primary Mission set. <a href="#/missions">Choose one &rarr;</a></p>`
         }
-        ${next ? `<div class="next-line"><span class="panel-eyebrow">Next</span> ${escapeHtml(next.title)} ${next.dueDate ? '&mdash; ' + describeDueDate(next.dueDate).text : ''}</div>` : ''}
+        ${next ? `<div class="next-line"><span class="panel-eyebrow">Next</span> ${escapeHtml(next.title)} ${next.dueDate ? '&mdash; ' + describeDueDateTime(next.dueDate, next.dueTime).text : ''}</div>` : ''}
       </section>
 
       <section class="quick-actions">
@@ -53,6 +55,16 @@ HeroOS.views.dashboard = {
         ${this._quickAction('#/nfc', 'NFC CONTROL', '⌘')}
         ${this._quickAction('#/portal', 'PORTAL', '◐')}
         ${this._quickAction('#/settings', 'SETTINGS', '⚙')}
+      </section>
+
+      <section class="panel modes-panel">
+        <div class="panel-eyebrow">Modes</div>
+        <div class="mode-links">
+          <a class="mode-link" href="#/study">Study</a>
+          <a class="mode-link" href="#/builder">Builder</a>
+          <a class="mode-link" href="#/training">Training</a>
+          <button class="mode-link" id="dashboard-night-toggle">${s.night.active ? 'Night: On' : 'Night'}</button>
+        </div>
       </section>
 
       <div class="dashboard-grid">
@@ -72,7 +84,7 @@ HeroOS.views.dashboard = {
           ${
             upcoming.length
               ? `<ul class="mini-list">${upcoming
-                  .map((m) => `<li>${escapeHtml(m.title)} <span class="due due-${describeDueDate(m.dueDate).state}">${describeDueDate(m.dueDate).text}</span></li>`)
+                  .map((m) => `<li>${escapeHtml(m.title)} <span class="due due-${describeDueDateTime(m.dueDate, m.dueTime).state}">${describeDueDateTime(m.dueDate, m.dueTime).text}</span></li>`)
                   .join('')}</ul>`
               : `<p class="empty-inline">Nothing scheduled.</p>`
           }
@@ -97,6 +109,13 @@ HeroOS.views.dashboard = {
         </section>
       </div>
     `;
+
+    root.querySelector('#dashboard-night-toggle').addEventListener('click', () => {
+      // Already on the dashboard, so the hash won't change and won't
+      // trigger a re-render on its own — render again explicitly.
+      HeroOS.app.runAction('night');
+      this.render(root);
+    });
   },
 
   _quickAction(href, label, glyph) {

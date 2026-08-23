@@ -12,6 +12,7 @@ HeroOS.state = {
   // The shape of a brand-new install. If you add a new field later,
   // add it here too, and see init() below for how old saves get upgraded.
   defaultState() {
+    const defaultSuitList = HeroOS.state.buildDefaultSuitCheckList('Default');
     return {
       version: 1,
       settings: {
@@ -20,28 +21,37 @@ HeroOS.state = {
         focusDurationMinutes: 25,
         theme: 'dark',
         missionCategories: ['College', 'Health', 'Business', 'Personal', 'Projects'],
-        // Future: { provider: 'openai'|'anthropic'|..., endpoint: '...' }
-        // Never put an API key here — see js/services/ai.js for why.
-        aiProvider: null,
+        // A real AI backend (see server/ai-proxy.js) can be plugged in by
+        // pointing "endpoint" at it and switching "enabled" on. The API key
+        // itself lives only on that server — never here.
+        aiProvider: { endpoint: '', enabled: false },
       },
       missions: [],
       primaryMissionId: null,
       captures: [],
       focusSessions: [],
+      // The timer that's currently running/paused, so a page refresh
+      // doesn't lose it. null when no session is in progress.
+      activeFocus: null,
       suitCheck: {
-        items: [
-          { id: HeroOS.utils.uid('item'), name: 'Phone', checked: false },
-          { id: HeroOS.utils.uid('item'), name: 'Wallet', checked: false },
-          { id: HeroOS.utils.uid('item'), name: 'Keys', checked: false },
-          { id: HeroOS.utils.uid('item'), name: 'Laptop', checked: false },
-          { id: HeroOS.utils.uid('item'), name: 'Charger', checked: false },
-          { id: HeroOS.utils.uid('item'), name: 'Water', checked: false },
-          { id: HeroOS.utils.uid('item'), name: 'Headphones', checked: false },
-        ],
+        activeListId: defaultSuitList.id,
+        lists: [defaultSuitList],
       },
       nfcTags: HeroOS.state.buildDefaultNfcTags(57),
       portal: { status: 'OFFLINE' },
       night: { active: false },
+    };
+  },
+
+  buildDefaultSuitCheckList(name) {
+    return {
+      id: HeroOS.utils.uid('list'),
+      name,
+      items: ['Phone', 'Wallet', 'Keys', 'Laptop', 'Charger', 'Water', 'Headphones'].map((n) => ({
+        id: HeroOS.utils.uid('item'),
+        name: n,
+        checked: false,
+      })),
     };
   },
 
@@ -70,10 +80,25 @@ HeroOS.state = {
         HeroOS.state.defaultState().settings,
         saved.settings || {}
       );
+      // Older saves stored aiProvider as null instead of an object.
+      if (!HeroOS.state.current.settings.aiProvider) {
+        HeroOS.state.current.settings.aiProvider = { endpoint: '', enabled: false };
+      }
+      HeroOS.state.migrateSuitCheck(HeroOS.state.current);
     } else {
       HeroOS.state.current = HeroOS.state.defaultState();
     }
     HeroOS.state.save();
+  },
+
+  // Older saves had a single flat suitCheck.items list. Wrap it into the
+  // new multi-list shape so nothing gets lost.
+  migrateSuitCheck(state) {
+    const sc = state.suitCheck;
+    if (sc && Array.isArray(sc.items) && !Array.isArray(sc.lists)) {
+      const list = { id: HeroOS.utils.uid('list'), name: 'Default', items: sc.items };
+      state.suitCheck = { activeListId: list.id, lists: [list] };
+    }
   },
 
   save() {
