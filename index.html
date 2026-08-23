@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HERO OS</title>
+  <meta name="description" content="Hero OS — a personal command center for college.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header id="header" class="app-header"></header>
+    <nav id="sidebar" class="app-sidebar"></nav>
+    <main id="view" class="app-view" tabindex="-1"></main>
+    <nav id="bottombar" class="app-bottombar"></nav>
+    <div class="sidebar-scrim" id="sidebar-scrim"></div>
+  </div>
+
+  <!-- Core data layer -->
+  <script src="js/utils.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/state.js"></script>
+
+  <!-- Service abstractions (AI, hardware, NFC) -->
+  <script src="js/services/ai.js"></script>
+  <script src="js/services/hardware.js"></script>
+  <script src="js/services/nfc.js"></script>
+
+  <!-- Global keyboard shortcuts -->
+  <script src="js/keyboard.js"></script>
+
+  <!-- Feature screens -->
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/missions.js"></script>
+  <script src="js/views/focus.js"></script>
+  <script src="js/views/suitcheck.js"></script>
+  <script src="js/views/capture.js"></script>
+  <script src="js/views/briefing.js"></script>
+  <script src="js/views/jarvis.js"></script>
+  <script src="js/views/nfcManager.js"></script>
+  <script src="js/views/portal.js"></script>
+  <script src="js/views/detective.js"></script>
+  <script src="js/views/settings.js"></script>
+
+  <!-- App shell: router + navigation, loaded last -->
+  <script src="js/app.js"></script>
+</body>
+</html>
