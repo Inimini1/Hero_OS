@@ -23,7 +23,8 @@ HeroOS.views.jarvis = {
           : ''
       }
 
-      <section class="panel chat-panel">
+      <section class="panel hud-frame chat-panel">
+        <div class="hud-status-line"><span class="status-dot ${configured ? '' : 'is-muted'}" aria-hidden="true"></span>${configured ? 'JARVIS · AI PROVIDER CONNECTED' : 'JARVIS · LOCAL COMMAND MODE'}</div>
         <div class="chat-log" id="chat-log">
           ${
             this._messages.length

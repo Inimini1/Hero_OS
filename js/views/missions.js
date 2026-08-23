@@ -156,13 +156,45 @@ HeroOS.views.missions = {
       <ul class="mission-list">
         ${
           list.length
-            ? list.map((m) => this._missionRow(m, categoryOptions)).join('')
+            ? this._sortBy === 'due'
+              ? this._renderGrouped(list, categoryOptions)
+              : list.map((m) => this._missionRow(m, categoryOptions)).join('')
             : `<li class="empty-inline">No missions here. Create one to get started.</li>`
         }
       </ul>
     `;
 
     this._attachEvents(root, categoryOptions);
+  },
+
+  // Groups by due date (Things' Today/Upcoming/Anytime idea, in Hero
+  // OS's own words) so "what needs to happen" and "what can wait" are
+  // visually separated instead of one flat, equally-weighted list.
+  _renderGrouped(list, categoryOptions) {
+    const buckets = [
+      { key: 'overdue', label: 'Overdue', items: [] },
+      { key: 'today', label: 'Today', items: [] },
+      { key: 'upcoming', label: 'Upcoming', items: [] },
+      { key: 'someday', label: 'Someday', items: [] },
+    ];
+    const bucketKeyOf = (m) => {
+      const state = HeroOS.utils.describeDueDate(m.dueDate).state;
+      if (state === 'overdue') return 'overdue';
+      if (state === 'today') return 'today';
+      if (state === 'none') return 'someday';
+      return 'upcoming';
+    };
+    list.forEach((m) => {
+      buckets.find((b) => b.key === bucketKeyOf(m)).items.push(m);
+    });
+    return buckets
+      .filter((b) => b.items.length)
+      .map(
+        (b) =>
+          `<li class="mission-group-heading">${b.label} (${b.items.length})</li>` +
+          b.items.map((m) => this._missionRow(m, categoryOptions)).join('')
+      )
+      .join('');
   },
 
   _missionRow(m, categoryOptions) {
@@ -175,12 +207,12 @@ HeroOS.views.missions = {
         <div class="mission-row-body">
           <div class="mission-row-title">
             ${isPrimary ? '<span class="primary-star" title="Primary Mission">★</span>' : ''}
+            ${m.priority !== 'normal' ? `<span class="priority-dot priority-dot-${m.priority}" title="${m.priority === 'high' ? 'High' : 'Low'} priority"></span>` : ''}
             ${escapeHtml(m.title)}
           </div>
           ${m.description ? `<div class="mission-row-desc">${escapeHtml(m.description)}</div>` : ''}
           <div class="mission-row-meta">
             <span class="badge badge-${m.category.toLowerCase()}">${escapeHtml(m.category)}</span>
-            <span class="badge badge-priority-${m.priority}">${m.priority}</span>
             <span class="due due-${due.state}">${due.text}</span>
             ${m.tags && m.tags.length ? m.tags.map((t) => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('') : ''}
           </div>

@@ -43,7 +43,8 @@ HeroOS.views.portal = {
     root.innerHTML = `
       <div class="view-header"><h1>Portal System</h1></div>
 
-      <section class="panel portal-panel">
+      <section class="panel hud-frame portal-panel">
+        <div class="hud-status-line"><span class="status-dot is-muted" aria-hidden="true"></span>PORTAL CONTROLLER · HARDWARE LINK: NOT CONNECTED</div>
         <div class="panel-eyebrow">Status</div>
         <div class="portal-status portal-status-${status.toLowerCase()}">${status}</div>
 

@@ -40,6 +40,11 @@ HeroOS.state = {
       nfcTags: HeroOS.state.buildDefaultNfcTags(57),
       portal: { status: 'OFFLINE' },
       night: { active: false },
+      // People, not tasks — see views/connections.js. No scores, ever.
+      connections: [],
+      // Deliberately minimal: just "what's on the calendar today", not a
+      // real calendar. Each entry is { id, title, date, startTime, endTime }.
+      schedule: [],
     };
   },
 

@@ -16,7 +16,16 @@ HeroOS.keyboard = {
 
   init() {
     document.addEventListener('keydown', (e) => {
+      // Cmd/Ctrl+K opens the Command Palette from anywhere, including
+      // while typing — that combo doesn't collide with normal text entry.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        HeroOS.commandPalette.toggle();
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (HeroOS.commandPalette.isOpen()) return; // palette owns its own keys while open
 
       const tag = document.activeElement.tagName;
       const isTyping =

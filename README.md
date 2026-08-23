@@ -5,10 +5,21 @@ superhero tech (JARVIS-style assistant, Batman-style prep tools, a Doctor
 Strange portal control panel, and hooks for future wearable hardware).
 
 V1 is a local, no-build web app: missions (tasks), Focus Mode, Suit Check
-(departure checklist), Quick Capture (fast notes), a Daily Briefing, JARVIS
-(local command mode, ready for a real AI provider later), an NFC tag
-manager for up to 57 physical tags, and placeholder control panels for the
-Portal project and future hardware (ESP32-C3, gesture ring, Spider-Sense).
+(departure checklist), Quick Capture (fast notes), Connections (people
+worth staying in touch with — not a CRM), a Daily Briefing with a
+lightweight today's-schedule, JARVIS (local command mode, ready for a real
+AI provider later), a Command Palette (⌘/Ctrl+K), an NFC tag manager for
+up to 57 physical tags, and placeholder control panels for the Portal
+project and future hardware (ESP32-C3, gesture ring, Spider-Sense).
+
+The visual/UX system is an original synthesis, not a copy of any single
+app: calm, grouped task lists (Things' restraint), typography-first quick
+capture (Apple Notes' speed), a schedule-aware daily briefing (Google
+Calendar's time-awareness, kept deliberately small), and a keyboard-first
+command palette (Raycast's control-surface feel) — layered under Hero OS's
+own dark, single-accent "JARVIS" identity. The command palette, NFC tags,
+keyboard shortcuts, and dashboard buttons all call the exact same
+functions, by design — see `js/commandPalette.js` and `js/services/nfc.js`.
 
 ## Running it
 
@@ -58,12 +69,14 @@ Uses `claude-opus-5` by default; set `HERO_OS_MODEL` to something cheaper
 - `js/store.js` — the only file that touches `localStorage`
 - `js/state.js` — the app's data shape + load/save
 - `js/toast.js` — the small "undo" snackbar used after deletes
+- `js/commandPalette.js` — the ⌘/Ctrl+K command palette (dispatches to the same functions as everything else)
 - `js/services/ai.js` — JARVIS's brain (local fallback, or calls `server/ai-proxy.js`)
 - `js/services/hardware.js` — event bus for future ESP32/gesture/sensor hardware
 - `js/services/nfc.js` — NFC action list + deep link builder
 - `js/keyboard.js` — global keyboard shortcuts
 - `js/views/*.js` — one file per screen; each owns its own data + UI
 - `js/views/modes.js` — Study/Builder/Training, each a thin re-skin of Focus or Missions
+- `js/views/connections.js` — people, not tasks
 - `js/app.js` — router and page chrome, loaded last
 - `server/ai-proxy.js` — optional local backend for real JARVIS AI answers
 

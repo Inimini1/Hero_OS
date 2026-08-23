@@ -71,6 +71,16 @@ HeroOS.utils = {
     return `${dueDateStr || '9999-99-99'}T${dueTimeStr || '23:59'}`;
   },
 
+  // Formats a "HH:MM" 24-hour string (e.g. from <input type="time">)
+  // into a readable local time like "2:30 PM".
+  formatHHMM(hhmm) {
+    if (!hhmm) return '';
+    const [h, m] = hhmm.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return HeroOS.utils.formatTime(d);
+  },
+
   isToday(dueDateStr) {
     if (!dueDateStr) return false;
     const today = new Date().toISOString().slice(0, 10);

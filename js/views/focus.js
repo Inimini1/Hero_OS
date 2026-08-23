@@ -21,6 +21,14 @@ HeroOS.views.focus = {
 
   // ---- data layer ----
 
+  // Used by the Command Palette ("Focus for 50 minutes") to start a
+  // session immediately, overriding whatever duration was set before.
+  quickStart(minutes) {
+    this._totalSeconds = minutes * 60;
+    this._remainingSeconds = minutes * 60;
+    this._start(document.getElementById('view'));
+  },
+
   recordSession(minutes, missionId) {
     const s = HeroOS.state.current;
     const mission = s.missions.find((m) => m.id === missionId);

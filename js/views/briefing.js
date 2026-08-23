@@ -1,12 +1,98 @@
 // views/briefing.js
-// A read-only summary, built entirely from data owned by other views.
-// Future: this is the natural place to plug in calendar data, or to
-// have JARVIS read this out loud through the Meta glasses' speakers.
+// A read-only summary of missions/focus/captures, PLUS the one place
+// Hero OS keeps a lightweight "what's on my day" schedule.
+//
+// This is deliberately NOT a calendar: entries are just {title, start,
+// end} for today, entered by hand. The point isn't to replace Google
+// Calendar — it's so Hero OS can tell "what do I have to do" apart
+// from "when do I actually have time to do it", instead of suggesting
+// a deep-work session on top of a lecture.
 
 window.HeroOS = window.HeroOS || {};
 HeroOS.views = HeroOS.views || {};
 
 HeroOS.views.briefing = {
+  // ---- schedule data layer ----
+
+  addEvent({ title, startTime, endTime = '' }) {
+    const s = HeroOS.state.current;
+    const event = {
+      id: HeroOS.utils.uid('ev'),
+      title: title.trim(),
+      date: HeroOS.utils.todayStr(),
+      startTime,
+      endTime,
+    };
+    s.schedule.push(event);
+    HeroOS.state.save();
+    return event;
+  },
+
+  deleteEvent(id) {
+    const s = HeroOS.state.current;
+    s.schedule = s.schedule.filter((e) => e.id !== id);
+    HeroOS.state.save();
+  },
+
+  todaysEvents() {
+    const todayStr = HeroOS.utils.todayStr();
+    return HeroOS.state.current.schedule
+      .filter((e) => e.date === todayStr)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  },
+
+  // Finds the single largest open block remaining today, so Hero OS can
+  // reason about realistic priorities instead of ignoring the day's
+  // actual shape. Returns a short readable string, or null if there's
+  // nothing worth mentioning.
+  freeTimeHint() {
+    const events = this.todaysEvents();
+    const toMinutes = (hhmm) => {
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const dayEndMinutes = 23 * 60;
+
+    const blocks = events
+      .map((e) => {
+        const start = toMinutes(e.startTime);
+        const end = e.endTime ? toMinutes(e.endTime) : start + 30;
+        return { start, end };
+      })
+      .filter((b) => b.end > nowMinutes)
+      .sort((a, b) => a.start - b.start);
+
+    let cursor = nowMinutes;
+    let best = null;
+    for (const b of blocks) {
+      const gapStart = cursor;
+      const gapEnd = Math.max(cursor, b.start);
+      if (gapEnd - gapStart > 0 && (!best || gapEnd - gapStart > best.end - best.start)) {
+        best = { start: gapStart, end: gapEnd };
+      }
+      cursor = Math.max(cursor, b.end);
+    }
+    if (dayEndMinutes - cursor > 0 && (!best || dayEndMinutes - cursor > best.end - best.start)) {
+      best = { start: cursor, end: dayEndMinutes };
+    }
+    if (!best || best.end - best.start < 15) return null;
+
+    const fmt = (mins) => {
+      const d = new Date();
+      d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+      return HeroOS.utils.formatTime(d);
+    };
+    const durationMins = best.end - best.start;
+    const h = Math.floor(durationMins / 60);
+    const m = durationMins % 60;
+    const durationText = h > 0 ? `${h}h${m ? ' ' + m + 'm' : ''}` : `${m}m`;
+    return `Biggest open block: ${fmt(best.start)}–${fmt(best.end)} (${durationText})`;
+  },
+
+  // ---- UI layer ----
+
   render(root) {
     const s = HeroOS.state.current;
     const { escapeHtml, isToday, dueSortKey, describeDueDateTime } = HeroOS.utils;
@@ -14,11 +100,13 @@ HeroOS.views.briefing = {
 
     const primary = s.missions.find((m) => m.id === s.primaryMissionId && !m.completed);
     const active = s.missions.filter((m) => !m.completed);
+    // Overdue counts as "today" — it's the most actionable bucket, not a
+    // third category competing with real upcoming work for attention.
     const todays = active
-      .filter((m) => isToday(m.dueDate))
+      .filter((m) => isToday(m.dueDate) || HeroOS.utils.describeDueDate(m.dueDate).state === 'overdue')
       .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)));
     const upcoming = active
-      .filter((m) => m.dueDate && !isToday(m.dueDate))
+      .filter((m) => m.dueDate && !isToday(m.dueDate) && HeroOS.utils.describeDueDate(m.dueDate).state !== 'overdue')
       .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)))
       .slice(0, 5);
 
@@ -26,6 +114,8 @@ HeroOS.views.briefing = {
     const focusToday = s.focusSessions.filter((f) => f.date === todayStr);
     const focusMinutes = focusToday.reduce((sum, f) => sum + f.minutes, 0);
     const recentCaptures = [...s.captures].slice(-5).reverse();
+    const events = this.todaysEvents();
+    const freeHint = this.freeTimeHint();
 
     root.innerHTML = `
       <div class="view-header"><h1>Daily Briefing</h1></div>
@@ -38,6 +128,22 @@ HeroOS.views.briefing = {
       <section class="panel">
         <div class="panel-eyebrow">Primary Mission</div>
         <p>${primary ? escapeHtml(primary.title) : 'None set.'}</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-eyebrow">Today's Schedule</div>
+        ${
+          events.length
+            ? `<div class="schedule-timeline">${events.map((e) => this._eventRow(e)).join('')}</div>`
+            : `<p class="empty-inline">Nothing on the schedule. Add your classes or commitments so Hero OS knows your real free time.</p>`
+        }
+        ${freeHint ? `<div class="schedule-gap-hint">${escapeHtml(freeHint)}</div>` : ''}
+        <form id="event-add-form" class="form-row" style="margin-top: 12px;">
+          <input type="text" id="event-title" placeholder="e.g. SCM lecture" maxlength="60" required>
+          <input type="time" id="event-start" required>
+          <input type="time" id="event-end" placeholder="End (optional)">
+          <button type="submit" class="btn btn-small">Add</button>
+        </form>
       </section>
 
       <section class="panel">
@@ -74,6 +180,39 @@ HeroOS.views.briefing = {
         }
       </section>
     `;
+
+    this._attachEvents(root);
+  },
+
+  _eventRow(e) {
+    const { escapeHtml, formatHHMM } = HeroOS.utils;
+    return `
+      <div class="schedule-event" data-id="${e.id}">
+        <span class="schedule-event-time">${formatHHMM(e.startTime)}${e.endTime ? '–' + formatHHMM(e.endTime) : ''}</span>
+        <span class="schedule-event-title">${escapeHtml(e.title)}</span>
+        <button class="schedule-event-delete" data-action="delete-event" title="Remove">&#10005;</button>
+      </div>
+    `;
+  },
+
+  _attachEvents(root) {
+    root.querySelectorAll('[data-action="delete-event"]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const row = e.target.closest('.schedule-event');
+        this.deleteEvent(row.dataset.id);
+        this.render(root);
+      });
+    });
+
+    root.querySelector('#event-add-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = root.querySelector('#event-title').value.trim();
+      const startTime = root.querySelector('#event-start').value;
+      const endTime = root.querySelector('#event-end').value;
+      if (!title || !startTime) return;
+      this.addEvent({ title, startTime, endTime });
+      this.render(root);
+    });
   },
 
   _greeting(now) {

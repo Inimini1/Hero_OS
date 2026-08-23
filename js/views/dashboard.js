@@ -1,6 +1,11 @@
 // views/dashboard.js
 // The main screen. Read-only — it just summarizes data that lives in
-// other views (missions.js, capture.js, focus.js, etc).
+// other views (missions.js, connections.js, briefing.js, etc).
+//
+// Deliberately organized around three questions, answered top to
+// bottom: what matters (Primary Mission), what's next (mission + the
+// day's actual shape), and who deserves attention (Connections) —
+// before anything resembling a productivity stat.
 
 window.HeroOS = window.HeroOS || {};
 HeroOS.views = HeroOS.views || {};
@@ -13,11 +18,13 @@ HeroOS.views.dashboard = {
     const primary = s.missions.find((m) => m.id === s.primaryMissionId && !m.completed);
 
     const active = s.missions.filter((m) => !m.completed);
+    // Overdue counts as "today" here — it's the most actionable bucket,
+    // not a third category competing for attention with real upcoming work.
     const todays = active
-      .filter((m) => isToday(m.dueDate))
+      .filter((m) => isToday(m.dueDate) || HeroOS.utils.describeDueDate(m.dueDate).state === 'overdue')
       .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)));
     const upcoming = active
-      .filter((m) => m.dueDate && !isToday(m.dueDate))
+      .filter((m) => m.dueDate && !isToday(m.dueDate) && HeroOS.utils.describeDueDate(m.dueDate).state !== 'overdue')
       .sort((a, b) => dueSortKey(a.dueDate, a.dueTime).localeCompare(dueSortKey(b.dueDate, b.dueTime)))
       .slice(0, 4);
     const next = active
@@ -27,8 +34,11 @@ HeroOS.views.dashboard = {
     const todayStr = HeroOS.utils.todayStr();
     const focusToday = s.focusSessions.filter((f) => f.date === todayStr);
     const focusMinutesToday = focusToday.reduce((sum, f) => sum + f.minutes, 0);
-
     const recentCaptures = [...s.captures].slice(-3).reverse();
+
+    const scheduleEvents = HeroOS.views.briefing.todaysEvents().slice(0, 3);
+    const freeHint = HeroOS.views.briefing.freeTimeHint();
+    const dueConnections = HeroOS.views.connections.due().slice(0, 3);
 
     root.innerHTML = `
       <section class="panel primary-mission-panel">
@@ -42,7 +52,24 @@ HeroOS.views.dashboard = {
                </div>`
             : `<p class="empty-inline">No Primary Mission set. <a href="#/missions">Choose one &rarr;</a></p>`
         }
-        ${next ? `<div class="next-line"><span class="panel-eyebrow">Next</span> ${escapeHtml(next.title)} ${next.dueDate ? '&mdash; ' + describeDueDateTime(next.dueDate, next.dueTime).text : ''}</div>` : ''}
+      </section>
+
+      <section class="panel">
+        <div class="panel-eyebrow">Next</div>
+        ${
+          next
+            ? `<p class="next-mission-line">${escapeHtml(next.title)}${next.dueDate ? ' &mdash; ' + describeDueDateTime(next.dueDate, next.dueTime).text : ''}</p>`
+            : `<p class="empty-inline">Nothing else queued up.</p>`
+        }
+        ${
+          scheduleEvents.length
+            ? `<div class="schedule-timeline">${scheduleEvents
+                .map((e) => `<div class="schedule-event"><span class="schedule-event-time">${HeroOS.utils.formatHHMM(e.startTime)}</span><span class="schedule-event-title">${escapeHtml(e.title)}</span></div>`)
+                .join('')}</div>`
+            : ''
+        }
+        ${freeHint ? `<div class="schedule-gap-hint">${escapeHtml(freeHint)}</div>` : ''}
+        <a class="link-more" href="#/briefing">${scheduleEvents.length ? 'Full schedule' : 'Add today’s schedule'} &rarr;</a>
       </section>
 
       <section class="quick-actions">
@@ -56,6 +83,18 @@ HeroOS.views.dashboard = {
         ${this._quickAction('#/portal', 'PORTAL', '◐')}
         ${this._quickAction('#/settings', 'SETTINGS', '⚙')}
       </section>
+
+      ${
+        dueConnections.length
+          ? `<section class="panel">
+              <div class="panel-eyebrow">Worth Reaching Out To</div>
+              <ul class="mini-list">
+                ${dueConnections.map((c) => `<li>${escapeHtml(c.name)}${c.whereWeMet ? ` <span class="text-muted">&middot; ${escapeHtml(c.whereWeMet)}</span>` : ''}</li>`).join('')}
+              </ul>
+              <a class="link-more" href="#/connections">Open Connections &rarr;</a>
+            </section>`
+          : ''
+      }
 
       <section class="panel modes-panel">
         <div class="panel-eyebrow">Modes</div>

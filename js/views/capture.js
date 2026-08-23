@@ -90,13 +90,17 @@ HeroOS.views.capture = {
 
       <section class="panel">
         <form id="capture-form">
-          <textarea id="capture-text" rows="3" placeholder="Type anything you want to remember&hellip;" autofocus></textarea>
-          <div class="form-row">
+          <textarea id="capture-text" class="capture-compose" rows="4" placeholder="Type anything you want to remember&hellip;" autofocus></textarea>
+          <button type="button" class="capture-details-toggle" id="capture-details-toggle">+ Category &amp; tags</button>
+          <div class="capture-secondary-fields" id="capture-secondary-fields">
             <select id="capture-category">
               ${this.CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('')}
             </select>
             <input type="text" id="capture-tags" placeholder="tags, comma, separated">
-            <button type="submit" class="btn btn-primary">Save (Ctrl+Enter)</button>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <span class="text-muted" style="font-size: 12.5px; align-self: center;">or press &#8984;/Ctrl + Enter</span>
           </div>
         </form>
       </section>
@@ -143,6 +147,8 @@ HeroOS.views.capture = {
   _attachEvents(root) {
     const form = root.querySelector('#capture-form');
     const textarea = root.querySelector('#capture-text');
+    const detailsToggle = root.querySelector('#capture-details-toggle');
+    const secondaryFields = root.querySelector('#capture-secondary-fields');
 
     const submit = () => {
       const text = textarea.value.trim();
@@ -163,6 +169,11 @@ HeroOS.views.capture = {
         e.preventDefault();
         submit();
       }
+    });
+
+    detailsToggle.addEventListener('click', () => {
+      const isOpen = secondaryFields.classList.toggle('is-open');
+      detailsToggle.textContent = isOpen ? 'Hide category & tags' : '+ Category & tags';
     });
 
     root.querySelector('#capture-search').addEventListener('input', (e) => {

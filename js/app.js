@@ -17,6 +17,7 @@ HeroOS.app = {
     { route: '#/focus', label: 'Focus' },
     { route: '#/suitcheck', label: 'Suit Check' },
     { route: '#/capture', label: 'Capture' },
+    { route: '#/connections', label: 'Connections' },
     { route: '#/briefing', label: 'Briefing' },
     { route: '#/jarvis', label: 'JARVIS' },
     { route: '#/nfc', label: 'NFC Control' },
@@ -39,6 +40,7 @@ HeroOS.app = {
     '#/focus': { title: 'Focus Mode', view: () => HeroOS.views.focus },
     '#/suitcheck': { title: 'Suit Check', view: () => HeroOS.views.suitcheck },
     '#/capture': { title: 'Quick Capture', view: () => HeroOS.views.capture },
+    '#/connections': { title: 'Connections', view: () => HeroOS.views.connections },
     '#/briefing': { title: 'Daily Briefing', view: () => HeroOS.views.briefing },
     '#/jarvis': { title: 'JARVIS', view: () => HeroOS.views.jarvis },
     '#/nfc': { title: 'NFC Control', view: () => HeroOS.views.nfcManager },
@@ -143,6 +145,9 @@ HeroOS.app = {
         <span class="status-dot" aria-hidden="true"></span>
         <span>${HeroOS.utils.escapeHtml(s.settings.appTitle)}</span>
       </div>
+      <button class="command-hint-chip" id="command-hint-chip" title="Open Command Palette">
+        <span aria-hidden="true">&#9670;</span><span>K</span>
+      </button>
       <div class="header-clock">
         <div id="hdr-date"></div>
         <div id="hdr-time"></div>
@@ -163,6 +168,9 @@ HeroOS.app = {
 
     header.querySelector('#menu-toggle').addEventListener('click', () => {
       document.body.classList.toggle('sidebar-open');
+    });
+    header.querySelector('#command-hint-chip').addEventListener('click', () => {
+      HeroOS.commandPalette.open();
     });
     bottombar.querySelector('#bottombar-menu').addEventListener('click', () => {
       document.body.classList.toggle('sidebar-open');
