@@ -61,6 +61,51 @@ than breaking.
 Uses `claude-opus-5` by default; set `HERO_OS_MODEL` to something cheaper
 (e.g. `claude-haiku-4-5`) if you'd rather optimize for cost.
 
+## Installing it as an app (PWA)
+
+Hero OS is an installable Progressive Web App: a manifest (`manifest.webmanifest`),
+a service worker (`sw.js`), and an on-brand icon set (`icons/`) let it run
+full-screen, offline, from a home screen or dock icon — with no change to
+the underlying app. This only works once Hero OS is served over **HTTPS**
+(or `localhost`); service workers refuse to register over plain HTTP.
+
+- **iPhone/iPad (Safari):** open the site, tap the Share icon, then
+  "Add to Home Screen". Safari never shows a browser-driven install prompt —
+  this manual step is the only way iOS installs any PWA, for any app.
+- **Mac/Windows/Android (Chrome or Edge):** open the site; the browser will
+  offer an install option (address-bar icon, or menu → "Install Hero OS").
+  Settings → **Install Hero OS** also shows a button there once the browser
+  has signaled it's installable.
+- **Offline:** the dashboard, missions, Focus Mode, Suit Check, Quick
+  Capture, Connections, and Settings all keep working offline — they only
+  ever read/write `localStorage`. JARVIS's local command mode also works
+  offline; the optional real-AI backend does not (it says so rather than
+  faking a response).
+
+## Deploying (heroos.appscloud365.com)
+
+Hero OS has no build step and no backend requirement — any static HTTPS
+host works: upload `index.html`, `manifest.webmanifest`, `sw.js`, `css/`,
+`js/`, and `icons/` as-is. `server/ai-proxy.js` is a separate, optional,
+local-only dev convenience and is not part of what gets deployed.
+
+To put this on `heroos.appscloud365.com`:
+
+1. Pick a static host (e.g. Netlify, Cloudflare Pages, GitHub Pages, Vercel)
+   and deploy this repository's root to it. Every static host auto-provisions
+   HTTPS, which the service worker requires.
+2. That host will give you a target hostname (e.g. `your-site.netlify.app`)
+   — DNS then points `heroos.appscloud365.com` at that target with a
+   `CNAME` record (or per that host's docs).
+3. **DNS is not configured automatically by this project** — nothing here
+   touches your domain. Point `heroos.appscloud365.com`'s DNS at whichever
+   host you choose once you've picked one.
+
+Hash-based routing (`#/focus`, `#/action/<id>`) means a deep link can never
+404 on refresh, on any static host, with zero server-side redirect rules —
+this was a deliberate reason to keep it as-is rather than migrate to
+path-based routing for this PWA pass.
+
 ## Project structure
 
 - `index.html` — the page shell (header, sidebar, content area, mobile nav)
@@ -77,7 +122,11 @@ Uses `claude-opus-5` by default; set `HERO_OS_MODEL` to something cheaper
 - `js/views/*.js` — one file per screen; each owns its own data + UI
 - `js/views/modes.js` — Study/Builder/Training, each a thin re-skin of Focus or Missions
 - `js/views/connections.js` — people, not tasks
+- `js/pwa.js` — service worker registration + install-prompt/iOS detection helpers
 - `js/app.js` — router and page chrome, loaded last
+- `manifest.webmanifest` — PWA metadata (name, icons, standalone display)
+- `sw.js` — service worker (app-shell caching, offline support)
+- `icons/` — the installed-app icon set
 - `server/ai-proxy.js` — optional local backend for real JARVIS AI answers
 
 See the project chat history for a full walkthrough of the architecture

@@ -58,6 +58,7 @@ HeroOS.app = {
     this.applyTheme();
     this.renderChrome();
     HeroOS.keyboard.init();
+    HeroOS.pwa.init();
 
     window.addEventListener('hashchange', () => this.router());
     document.getElementById('sidebar-scrim').addEventListener('click', () => {

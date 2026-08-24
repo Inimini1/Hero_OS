@@ -71,6 +71,27 @@ HeroOS.views.settings = {
     return true;
   },
 
+  // ---- install (PWA) ----
+
+  _installSectionHtml() {
+    const pwa = HeroOS.pwa;
+    if (!pwa) return '';
+
+    if (pwa.isStandalone()) {
+      return `<p class="text-muted" style="font-size: 12.5px;">Hero OS is installed on this device.</p>`;
+    }
+    if (pwa.canPromptInstall()) {
+      return `
+        <p class="text-muted" style="font-size: 12.5px;">Install Hero OS for a full-screen, app-like experience with offline access.</p>
+        <div class="form-actions"><button class="btn" id="install-app-btn">Install Hero OS</button></div>
+      `;
+    }
+    if (pwa.isIOS()) {
+      return `<p class="text-muted" style="font-size: 12.5px;">On iPhone or iPad: tap the Share icon in Safari, then "Add to Home Screen".</p>`;
+    }
+    return `<p class="text-muted" style="font-size: 12.5px;">Open Hero OS in Chrome, Edge, or Safari on iPhone/iPad to install it as an app.</p>`;
+  },
+
   // ---- UI layer ----
 
   render(root) {
@@ -152,6 +173,11 @@ HeroOS.views.settings = {
       </section>
 
       <section class="panel form-panel">
+        <h3>Install Hero OS</h3>
+        ${this._installSectionHtml()}
+      </section>
+
+      <section class="panel form-panel">
         <h3>Backup</h3>
         <p class="text-muted" style="font-size: 12.5px;">Save all your Hero OS data to a file, or load a previous backup.</p>
         <div class="form-actions">
@@ -210,6 +236,14 @@ HeroOS.views.settings = {
     root.querySelector('#set-ai-enabled').addEventListener('change', (e) => {
       this.updateAiProvider({ enabled: e.target.checked });
     });
+
+    const installBtn = root.querySelector('#install-app-btn');
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        await HeroOS.pwa.promptInstall();
+        this.render(root);
+      });
+    }
 
     root.querySelector('#export-data-btn').addEventListener('click', () => {
       this.exportData();
