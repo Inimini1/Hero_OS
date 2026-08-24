@@ -93,7 +93,7 @@ HeroOS.views.nfcManager = {
           ${tag.location ? `<div class="nfc-card-location">${escapeHtml(tag.location)}</div>` : ''}
           <div class="nfc-card-actions">
             <button data-action="edit" class="btn btn-small">Edit</button>
-            <button data-action="copy" class="btn btn-small" ${tag.action ? '' : 'disabled'}>Copy Link</button>
+            <button data-action="copy" class="btn btn-small" title="Copy this tag's Hero OS link — works even before an action is assigned">Copy Link</button>
           </div>
         </li>
       `;

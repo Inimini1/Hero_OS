@@ -207,12 +207,12 @@ HeroOS.views.missions = {
         <div class="mission-row-body">
           <div class="mission-row-title">
             ${isPrimary ? '<span class="primary-star" title="Primary Mission">★</span>' : ''}
-            ${m.priority !== 'normal' ? `<span class="priority-dot priority-dot-${m.priority}" title="${m.priority === 'high' ? 'High' : 'Low'} priority"></span>` : ''}
             ${escapeHtml(m.title)}
           </div>
           ${m.description ? `<div class="mission-row-desc">${escapeHtml(m.description)}</div>` : ''}
           <div class="mission-row-meta">
             <span class="badge badge-${m.category.toLowerCase()}">${escapeHtml(m.category)}</span>
+            ${m.priority !== 'normal' ? `<span class="badge badge-priority-${m.priority}">${m.priority === 'high' ? 'High priority' : 'Low priority'}</span>` : ''}
             <span class="due due-${due.state}">${due.text}</span>
             ${m.tags && m.tags.length ? m.tags.map((t) => `<span class="tag-chip">#${escapeHtml(t)}</span>`).join('') : ''}
           </div>

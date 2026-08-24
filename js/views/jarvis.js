@@ -19,7 +19,7 @@ HeroOS.views.jarvis = {
 
       ${
         !configured
-          ? `<div class="panel notice-panel">No AI provider configured. Running in local command mode — try "today", "primary", or "add mission: &lt;title&gt;". Connect a real AI provider anytime in <a href="#/settings">Settings</a>.</div>`
+          ? `<div class="panel notice-panel">No AI provider configured. Running in local command mode — try "today", "primary", "suit check", "captures today", or "add mission: &lt;title&gt;". Connect a real AI provider anytime in <a href="#/settings">Settings</a>.</div>`
           : ''
       }
 

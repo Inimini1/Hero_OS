@@ -703,14 +703,17 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
 }
 .mission-row-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-faint);
   cursor: pointer;
   font-size: 15px;
   padding: 6px;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .mission-row-actions button:hover {
   color: var(--accent);
@@ -817,12 +820,15 @@ input:focus, select:focus, textarea:focus {
   gap: 2px;
 }
 .suit-item-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-faint);
   cursor: pointer;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .suit-item-actions button:disabled {
   opacity: 0.25;
@@ -1242,14 +1248,17 @@ kbd {
   flex-shrink: 0;
 }
 .connection-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-faint);
   cursor: pointer;
   font-size: 15px;
   padding: 6px;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .connection-actions button:hover {
   color: var(--accent);

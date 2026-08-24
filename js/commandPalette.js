@@ -66,6 +66,15 @@ HeroOS.commandPalette = {
         keywords: 'calendar today time briefing',
         run: () => HeroOS.app.navigate('#/briefing'),
       },
+      {
+        // Same toggle HeroOS.app.runAction('night') that the Dashboard
+        // button, NFC tags, and the 'n' keyboard shortcut all call —
+        // the label just reflects current state at open() time.
+        label: HeroOS.state.current.night.active ? 'Turn Off Night Mode' : 'Turn On Night Mode',
+        keywords: 'night mode dim brightness',
+        hint: 'N',
+        run: () => HeroOS.app.runAction('night'),
+      },
     ];
 
     nav.forEach((item) => {
@@ -101,6 +110,9 @@ HeroOS.commandPalette = {
   },
 
   open() {
+    // Remember what had focus so close() can put it back — the standard
+    // dialog contract ("focus returns to the element that opened it").
+    this._triggerElement = document.activeElement;
     this._open = true;
     this._query = '';
     this._activeIndex = 0;
@@ -115,6 +127,11 @@ HeroOS.commandPalette = {
     this._open = false;
     const container = document.getElementById('command-palette-container');
     if (container) container.innerHTML = '';
+    const trigger = this._triggerElement;
+    this._triggerElement = null;
+    if (trigger && document.contains(trigger) && typeof trigger.focus === 'function') {
+      trigger.focus();
+    }
   },
 
   toggle() {
@@ -140,12 +157,23 @@ HeroOS.commandPalette = {
 
     container.innerHTML = `
       <div class="command-palette-overlay" id="command-palette-overlay">
-        <div class="command-palette" role="dialog" aria-label="Command Palette">
+        <div class="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette">
           <div class="command-palette-input-row">
             <span class="command-palette-glyph" aria-hidden="true">&#9670;</span>
-            <input type="text" id="command-palette-input" class="command-palette-input" placeholder="What do you want to do?" autocomplete="off">
+            <input
+              type="text"
+              id="command-palette-input"
+              class="command-palette-input"
+              placeholder="What do you want to do?"
+              autocomplete="off"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls="command-palette-list"
+              aria-autocomplete="list"
+              aria-activedescendant=""
+            >
           </div>
-          <div class="command-palette-list" id="command-palette-list"></div>
+          <div class="command-palette-list" id="command-palette-list" role="listbox" aria-label="Commands"></div>
           <div class="command-palette-footer">
             <span><kbd>&uarr;&darr;</kbd> Navigate</span>
             <span><kbd>Enter</kbd> Run</span>
@@ -185,6 +213,12 @@ HeroOS.commandPalette = {
         e.preventDefault();
         const cmd = results[this._activeIndex];
         if (cmd) this._run(cmd);
+      } else if (e.key === 'Tab') {
+        // The search input is the only real tab stop in this dialog —
+        // options are reached via arrow keys + aria-activedescendant,
+        // not Tab. Consuming Tab here keeps focus from leaking out to
+        // the page behind the overlay while it's open.
+        e.preventDefault();
       }
     });
   },
@@ -202,7 +236,7 @@ HeroOS.commandPalette = {
       ? results
           .map(
             (c, i) => `
-        <div class="command-palette-item ${i === this._activeIndex ? 'is-active' : ''}" data-index="${i}">
+        <div class="command-palette-item ${i === this._activeIndex ? 'is-active' : ''}" id="command-palette-option-${i}" role="option" aria-selected="${i === this._activeIndex}" data-index="${i}">
           <span>${escapeHtml(c.label)}</span>
           ${c.hint ? `<span class="command-palette-item-hint">${escapeHtml(c.hint)}</span>` : ''}
         </div>
@@ -210,6 +244,13 @@ HeroOS.commandPalette = {
           )
           .join('')
       : `<div class="command-palette-empty">No matching command.</div>`;
+
+    // The input keeps real DOM focus the whole time — aria-activedescendant
+    // is how screen readers learn which option is "virtually" focused.
+    const input = document.getElementById('command-palette-input');
+    if (input) {
+      input.setAttribute('aria-activedescendant', results.length ? `command-palette-option-${this._activeIndex}` : '');
+    }
 
     list.querySelectorAll('.command-palette-item').forEach((el) => {
       el.addEventListener('click', () => {

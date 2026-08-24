@@ -5,6 +5,7 @@
 window.HeroOS = window.HeroOS || {};
 
 HeroOS.keyboard = {
+  // Plain screen shortcuts — just set the hash, same as clicking a nav link.
   SHORTCUTS: {
     f: '#/focus',
     c: '#/capture',
@@ -12,6 +13,14 @@ HeroOS.keyboard = {
     m: '#/missions',
     j: '#/jarvis',
     p: '#/portal',
+  },
+
+  // Shortcuts that trigger an action rather than a plain route (e.g. Night
+  // Mode is a toggle, not a screen). These call HeroOS.app.runAction() —
+  // the exact same function NFC tags and the Command Palette call — so the
+  // toggle logic itself only ever lives in one place (see app.js).
+  ACTION_SHORTCUTS: {
+    n: 'night',
   },
 
   init() {
@@ -32,7 +41,16 @@ HeroOS.keyboard = {
         tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement.isContentEditable;
       if (isTyping) return;
 
-      const route = this.SHORTCUTS[e.key.toLowerCase()];
+      const key = e.key.toLowerCase();
+
+      const actionId = this.ACTION_SHORTCUTS[key];
+      if (actionId) {
+        e.preventDefault();
+        HeroOS.app.runAction(actionId);
+        return;
+      }
+
+      const route = this.SHORTCUTS[key];
       if (route) {
         e.preventDefault();
         window.location.hash = route;

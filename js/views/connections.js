@@ -11,7 +11,7 @@ HeroOS.views.connections = {
 
   // ---- data layer ----
 
-  addConnection({ name, whereWeMet = '', note = '', reminderDate = '' }) {
+  addConnection({ name, whereWeMet = '', note = '', reminderDate = '', lastInteraction = '' }) {
     const s = HeroOS.state.current;
     const connection = {
       id: HeroOS.utils.uid('conn'),
@@ -19,7 +19,7 @@ HeroOS.views.connections = {
       whereWeMet,
       note,
       reminderDate,
-      lastInteraction: '',
+      lastInteraction,
       createdAt: HeroOS.utils.nowISO(),
     };
     s.connections.push(connection);
@@ -160,9 +160,14 @@ HeroOS.views.connections = {
         <label>Something worth remembering
           <textarea name="note" rows="2" placeholder="Optional — a detail, an inside joke, what they're working on">${editing ? escapeHtml(editing.note) : ''}</textarea>
         </label>
-        <label>Gentle reminder date
-          <input type="date" name="reminderDate" value="${editing ? editing.reminderDate || '' : ''}">
-        </label>
+        <div class="form-row">
+          <label>Last interaction date
+            <input type="date" name="lastInteraction" value="${editing ? editing.lastInteraction || '' : ''}">
+          </label>
+          <label>Gentle reminder date
+            <input type="date" name="reminderDate" value="${editing ? editing.reminderDate || '' : ''}">
+          </label>
+        </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">${editing ? 'Save Changes' : 'Add Person'}</button>
           <button type="button" class="btn" id="connection-form-cancel">Cancel</button>
@@ -183,6 +188,7 @@ HeroOS.views.connections = {
         whereWeMet: fd.get('whereWeMet').trim(),
         note: fd.get('note').trim(),
         reminderDate: fd.get('reminderDate'),
+        lastInteraction: fd.get('lastInteraction'),
       };
       if (!data.name) return;
 
