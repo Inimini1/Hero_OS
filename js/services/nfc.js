@@ -28,6 +28,10 @@ HeroOS.services.nfc = {
     { id: 'training', label: 'Training Mode', route: '#/training' },
     { id: 'jarvis', label: 'JARVIS', route: '#/jarvis' },
     { id: 'portal', label: 'Portal', route: '#/portal' },
+    // Opens Briefing, which already pulls a fresh live Google Calendar +
+    // Gmail read on every load when connected — so "sync" is really just
+    // "go look," reusing what's already real rather than new plumbing.
+    { id: 'sync', label: 'Sync (Calendar + Gmail)', route: '#/briefing' },
     { id: 'custom', label: 'Custom', route: '#/' },
   ],
 
