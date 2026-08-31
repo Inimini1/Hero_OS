@@ -32,7 +32,7 @@ HeroOS.services.ai = {
         return data.reply;
       } catch (err) {
         console.error('Hero OS: AI provider request failed, falling back to local commands.', err);
-        return `(Couldn't reach the AI provider: ${err.message}. Falling back to local command mode.)\n\n` + this._localFallback(message);
+        return `(Couldn't reach the AI provider: ${err.message}. Falling back to local command mode.)\n\n` + (await this._localFallback(message));
       }
     }
     return this._localFallback(message);
@@ -40,14 +40,49 @@ HeroOS.services.ai = {
 
   // A handful of simple commands so JARVIS is useful with zero setup.
   // This is NOT AI — it's pattern matching. It's honest about that in the UI.
-  _localFallback(raw) {
+  async _localFallback(raw) {
     const text = raw.trim();
     const lower = text.toLowerCase();
     const s = HeroOS.state.current;
     const name = s.settings.userName || 'Hero';
 
     if (/^(hi|hello|hey)\b/.test(lower)) {
-      return `Hello, ${name}. Local command mode is active — try "today", "primary", "suit check", "captures today", or "add mission: <title>".`;
+      return `Hello, ${name}. Local command mode is active — try "today", "primary", "suit check", "captures today", "calendar", "inbox", or "add mission: <title>".`;
+    }
+
+    if (lower.includes('calendar') || lower.includes('schedule')) {
+      const google = HeroOS.services.google;
+      if (!google || !google.isConnected()) {
+        return google && google.wasEverConnected()
+          ? 'Google access has expired — reconnect on the Briefing screen or in Settings and ask me again.'
+          : 'Google Calendar isn\'t connected yet. Connect it in Settings to ask me this.';
+      }
+      try {
+        const events = await google.todaysEvents();
+        if (events.length === 0) return 'Nothing on your Google Calendar today.';
+        const lines = events.map((e) => {
+          const time = e.allDay ? 'All day' : HeroOS.utils.formatTime(new Date(e.start));
+          return `${time} — ${e.title}`;
+        });
+        return `Today's calendar:\n` + lines.join('\n');
+      } catch (err) {
+        return `Couldn't reach Google Calendar (${err.message}). Try reconnecting in Settings.`;
+      }
+    }
+
+    if (lower.includes('inbox') || lower.includes('unread') || lower.includes('email')) {
+      const google = HeroOS.services.google;
+      if (!google || !google.isConnected()) {
+        return google && google.wasEverConnected()
+          ? 'Google access has expired — reconnect on the Briefing screen or in Settings and ask me again.'
+          : 'Gmail isn\'t connected yet. Connect it in Settings to ask me this.';
+      }
+      try {
+        const count = await google.unreadCount();
+        return count === 0 ? 'Inbox zero — nothing unread.' : `${count} unread in Gmail.`;
+      } catch (err) {
+        return `Couldn't reach Gmail (${err.message}). Try reconnecting in Settings.`;
+      }
     }
 
     if (lower.includes('time')) {
@@ -97,7 +132,7 @@ HeroOS.services.ai = {
 
     return (
       'Local command mode: I can\'t reason freely yet (no AI provider connected). ' +
-      'Try "today", "primary", "suit check", "captures today", "time", "date", or "add mission: <title>". ' +
+      'Try "today", "primary", "suit check", "captures today", "calendar", "inbox", "time", "date", or "add mission: <title>". ' +
       'Connect a real AI provider anytime in Settings.'
     );
   },
