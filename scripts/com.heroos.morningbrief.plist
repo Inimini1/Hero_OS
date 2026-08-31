@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.heroos.morningbrief.plist — a launchd job that runs the morning
+  brief automatically every day at 7:00 AM, as long as your Mac is
+  awake (not asleep or shut down).
+
+  BEFORE INSTALLING: edit the two lines marked CHANGE ME below to the
+  real, full path to where you saved the Hero_OS folder on your Mac.
+  Find it by opening Terminal, cd-ing into that folder, and typing `pwd`
+  — that prints the exact path to use.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.heroos.morningbrief</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/iniyanalagappan/CHANGE-ME-Hero_OS/scripts/run-morning-brief.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/iniyanalagappan/CHANGE-ME-Hero_OS</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/heroos-morningbrief.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/heroos-morningbrief.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
