@@ -61,11 +61,16 @@ hold-off directive into one of the lines. End with exactly:
   threads scanned, needs-reply count, task count).
 - Also write it to `brief.txt` at the repo root, if you have file write
   access in this session.
-- If a Fish Audio voice is configured (see `scripts/speak-brief.js` and
-  the `FISH_API_KEY` environment variable) and you're running somewhere
-  that can play audio, hand the finished brief text to that script so it
-  gets read aloud. If that script or key isn't available, skip audio —
-  don't fail the whole brief over it, and don't fake having spoken it.
+- **Speak it, if you can.** Voice is confirmed working (tested by Iniyan
+  directly — Fish Audio + `scripts/speak-brief.js`, key stored as
+  `FISH_API_KEY`/`FISH_VOICE_ID` in his shell profile). If this session
+  has real Bash/shell access on a machine with speakers (i.e. running
+  locally on his Mac, not a cloud-only session), run:
+  `node scripts/speak-brief.js brief.txt`
+  right after writing `brief.txt`. A cloud/remote session has no speakers
+  to reach regardless of whether the script exists — in that case just
+  skip the audio step silently, don't apologize for it, and don't claim
+  to have spoken it. Never fabricate having played audio.
 
 ## What this skill does NOT do
 
