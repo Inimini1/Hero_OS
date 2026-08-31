@@ -1,17 +1,19 @@
 // services/google.js
 // Direct browser-to-Google integration — no backend involved. Uses Google
 // Identity Services (loaded in index.html) to get a short-lived access
-// token that lives only in this tab's sessionStorage, and calls Google's
-// APIs straight from the browser (Calendar and Gmail both allow this —
-// verified their CORS headers explicitly allow cross-origin requests).
+// token, stored in this device's localStorage so it survives closing and
+// reopening the PWA, and calls Google's APIs straight from the browser
+// (Calendar and Gmail both allow this — verified their CORS headers
+// explicitly allow cross-origin requests).
 //
 // Read-only on purpose: this only ever reads Calendar/Gmail, never sends
 // or modifies anything. Drafting/sending stays a Claude-chat action, not
 // something Hero OS's frontend does on its own.
 //
 // Because there's no backend, there's no refresh token either — the
-// access token expires in about an hour and the user re-approves via a
-// one-click prompt, not a full re-login.
+// access token itself still expires in about an hour no matter where it's
+// stored (that's Google's limit, not a storage choice), and reconnecting
+// after that is a one-click "Reconnect" prompt, not a full re-login.
 
 window.HeroOS = window.HeroOS || {};
 HeroOS.services = HeroOS.services || {};
@@ -32,9 +34,14 @@ HeroOS.services.google = {
     this._listeners.forEach((fn) => fn());
   },
 
+  // localStorage, not sessionStorage: a PWA effectively opens a "new tab"
+  // each time, which would clear sessionStorage and force a reconnect on
+  // every single open. localStorage survives that, so the connection
+  // actually lasts as long as the token itself is valid (~1 hour), not
+  // just until the window closes.
   _readToken() {
     try {
-      const raw = sessionStorage.getItem(this.TOKEN_KEY);
+      const raw = localStorage.getItem(this.TOKEN_KEY);
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data.accessToken || !data.expiresAt || Date.now() >= data.expiresAt) return null;
@@ -44,12 +51,23 @@ HeroOS.services.google = {
     }
   },
 
+  // True once a connection has ever been made on this device, even if the
+  // token has since expired — lets the UI offer a fast "Reconnect" instead
+  // of the full first-time "Connect" flow.
+  wasEverConnected() {
+    try {
+      return localStorage.getItem(this.TOKEN_KEY) !== null;
+    } catch (e) {
+      return false;
+    }
+  },
+
   _writeToken(accessToken, expiresInSeconds) {
     const data = { accessToken, expiresAt: Date.now() + expiresInSeconds * 1000 - 60000 };
     try {
-      sessionStorage.setItem(this.TOKEN_KEY, JSON.stringify(data));
+      localStorage.setItem(this.TOKEN_KEY, JSON.stringify(data));
     } catch (e) {
-      // sessionStorage unavailable (private browsing, etc.) — connection
+      // localStorage unavailable (private browsing, etc.) — connection
       // just won't persist across a reload; not fatal.
     }
   },
@@ -88,7 +106,7 @@ HeroOS.services.google = {
   disconnect() {
     const token = this._readToken();
     try {
-      sessionStorage.removeItem(this.TOKEN_KEY);
+      localStorage.removeItem(this.TOKEN_KEY);
     } catch (e) {
       // ignore
     }

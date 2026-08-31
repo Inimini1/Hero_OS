@@ -197,19 +197,26 @@ HeroOS.views.briefing = {
 
   // ---- Google Calendar / Gmail (live, read-only) ----
 
+  _disconnectedHtml(label) {
+    const google = HeroOS.services.google;
+    if (google && google.wasEverConnected()) {
+      // Had a connection before, it just expired (~hourly, no backend to
+      // refresh it silently) — offer the fast path right here instead of
+      // sending them back to Settings every time.
+      return `<p class="empty-inline">Google access expired. <button class="link-btn" data-action="reconnect-google">Reconnect</button> to see ${label} here again.</p>`;
+    }
+    return `<p class="empty-inline">Not connected. <a href="#/settings">Connect Google in Settings</a> to see ${label} here.</p>`;
+  },
+
   _googleCalHtml() {
     const google = HeroOS.services.google;
-    if (!google || !google.isConnected()) {
-      return `<p class="empty-inline">Not connected. <a href="#/settings">Connect Google in Settings</a> to see your real calendar here.</p>`;
-    }
+    if (!google || !google.isConnected()) return this._disconnectedHtml('your real calendar');
     return `<p class="empty-inline">Loading…</p>`;
   },
 
   _gmailHtml() {
     const google = HeroOS.services.google;
-    if (!google || !google.isConnected()) {
-      return `<p class="empty-inline">Not connected. <a href="#/settings">Connect Google in Settings</a> to see this here.</p>`;
-    }
+    if (!google || !google.isConnected()) return this._disconnectedHtml('this');
     return `<p class="empty-inline">Loading…</p>`;
   },
 
@@ -233,7 +240,7 @@ HeroOS.views.briefing = {
       calPanel.innerHTML = `<div class="panel-eyebrow">Google Calendar &mdash; Today</div>${html}`;
     }).catch(() => {
       if (calPanel && document.body.contains(calPanel)) {
-        calPanel.innerHTML = `<div class="panel-eyebrow">Google Calendar &mdash; Today</div><p class="empty-inline">Couldn't reach Google Calendar &mdash; try reconnecting in Settings.</p>`;
+        calPanel.innerHTML = `<div class="panel-eyebrow">Google Calendar &mdash; Today</div><p class="empty-inline">Couldn't reach Google Calendar. <button class="link-btn" data-action="reconnect-google">Reconnect</button></p>`;
       }
     });
 
@@ -242,7 +249,7 @@ HeroOS.views.briefing = {
       gmailPanel.innerHTML = `<div class="panel-eyebrow">Gmail</div><p>${count} unread.</p>`;
     }).catch(() => {
       if (gmailPanel && document.body.contains(gmailPanel)) {
-        gmailPanel.innerHTML = `<div class="panel-eyebrow">Gmail</div><p class="empty-inline">Couldn't reach Gmail &mdash; try reconnecting in Settings.</p>`;
+        gmailPanel.innerHTML = `<div class="panel-eyebrow">Gmail</div><p class="empty-inline">Couldn't reach Gmail. <button class="link-btn" data-action="reconnect-google">Reconnect</button></p>`;
       }
     });
   },
@@ -290,6 +297,23 @@ HeroOS.views.briefing = {
       if (!title || !startTime) return;
       this.addEvent({ title, startTime, endTime });
       this.render(root);
+    });
+
+    // Delegated: the "Reconnect" button only shows up inside panels that
+    // get swapped in later (once-connected-now-expired state, or a fetch
+    // failure), so it may not exist yet when this handler is attached.
+    root.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="reconnect-google"]');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = 'Reconnecting…';
+      HeroOS.services.google.connect(
+        () => this._loadGoogleData(root),
+        () => {
+          btn.disabled = false;
+          btn.textContent = 'Reconnect';
+        }
+      );
     });
   },
 

@@ -95,6 +95,26 @@ a:hover {
   text-decoration: underline;
 }
 
+/* A <button> that reads as an inline text link — for actions embedded in
+   a sentence (e.g. "Couldn't reach X. Reconnect.") where an <a> would be
+   wrong semantically since it doesn't navigate anywhere. */
+.link-btn {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.link-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.link-btn:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
 ul {
   list-style: none;
   margin: 0;
