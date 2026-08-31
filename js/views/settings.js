@@ -92,6 +92,27 @@ HeroOS.views.settings = {
     return `<p class="text-muted" style="font-size: 12.5px;">Open Hero OS in Chrome, Edge, or Safari on iPhone/iPad to install it as an app.</p>`;
   },
 
+  // ---- Google (Calendar/Gmail) ----
+
+  _googleSectionHtml() {
+    const google = HeroOS.services.google;
+    const note = `<p class="text-muted" style="font-size: 12.5px;">Read-only, and direct — your browser talks to Google straight, no server in between. Powers the live Calendar/Gmail panels on the Daily Briefing screen.</p>`;
+    if (!google) return note;
+
+    if (google.isConnected()) {
+      return `
+        ${note}
+        <p class="text-muted" style="font-size: 12.5px;">Connected. Access refreshes automatically for about an hour, then you'll be asked to reconnect with one click.</p>
+        <div class="form-actions"><button class="btn" id="google-disconnect-btn">Disconnect Google</button></div>
+      `;
+    }
+    return `
+      ${note}
+      <div class="form-actions"><button class="btn" id="google-connect-btn">Connect Google</button></div>
+      <p class="text-muted" id="google-connect-error" style="font-size: 12px; display: none; margin-top: 8px;"></p>
+    `;
+  },
+
   // ---- UI layer ----
 
   render(root) {
@@ -164,6 +185,11 @@ HeroOS.views.settings = {
           <input type="checkbox" id="set-ai-enabled" ${s.settings.aiProvider && s.settings.aiProvider.enabled ? 'checked' : ''}>
           <span>Enable AI provider</span>
         </label>
+      </section>
+
+      <section class="panel form-panel">
+        <h3>Google (Calendar &amp; Gmail)</h3>
+        ${this._googleSectionHtml()}
       </section>
 
       <section class="panel notice-panel">
@@ -241,6 +267,33 @@ HeroOS.views.settings = {
     if (installBtn) {
       installBtn.addEventListener('click', async () => {
         await HeroOS.pwa.promptInstall();
+        this.render(root);
+      });
+    }
+
+    const googleConnectBtn = root.querySelector('#google-connect-btn');
+    if (googleConnectBtn) {
+      googleConnectBtn.addEventListener('click', () => {
+        googleConnectBtn.disabled = true;
+        googleConnectBtn.textContent = 'Connecting…';
+        HeroOS.services.google.connect(
+          () => this.render(root),
+          (err) => {
+            googleConnectBtn.disabled = false;
+            googleConnectBtn.textContent = 'Connect Google';
+            const errEl = root.querySelector('#google-connect-error');
+            if (errEl) {
+              errEl.textContent = err.message || "Couldn't connect — try again.";
+              errEl.style.display = 'block';
+            }
+          }
+        );
+      });
+    }
+    const googleDisconnectBtn = root.querySelector('#google-disconnect-btn');
+    if (googleDisconnectBtn) {
+      googleDisconnectBtn.addEventListener('click', () => {
+        HeroOS.services.google.disconnect();
         this.render(root);
       });
     }

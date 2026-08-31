@@ -130,6 +130,16 @@ HeroOS.views.briefing = {
         <p>${primary ? escapeHtml(primary.title) : 'None set.'}</p>
       </section>
 
+      <section class="panel" id="google-cal-panel">
+        <div class="panel-eyebrow">Google Calendar &mdash; Today</div>
+        ${this._googleCalHtml()}
+      </section>
+
+      <section class="panel" id="gmail-panel">
+        <div class="panel-eyebrow">Gmail</div>
+        ${this._gmailHtml()}
+      </section>
+
       <section class="panel">
         <div class="panel-eyebrow">Today's Schedule</div>
         ${
@@ -182,6 +192,74 @@ HeroOS.views.briefing = {
     `;
 
     this._attachEvents(root);
+    this._loadGoogleData(root);
+  },
+
+  // ---- Google Calendar / Gmail (live, read-only) ----
+
+  _googleCalHtml() {
+    const google = HeroOS.services.google;
+    if (!google || !google.isConnected()) {
+      return `<p class="empty-inline">Not connected. <a href="#/settings">Connect Google in Settings</a> to see your real calendar here.</p>`;
+    }
+    return `<p class="empty-inline">Loading…</p>`;
+  },
+
+  _gmailHtml() {
+    const google = HeroOS.services.google;
+    if (!google || !google.isConnected()) {
+      return `<p class="empty-inline">Not connected. <a href="#/settings">Connect Google in Settings</a> to see this here.</p>`;
+    }
+    return `<p class="empty-inline">Loading…</p>`;
+  },
+
+  // Fetches live once connected and patches just these two panels — never
+  // a full re-render, so it can't disturb scroll position or a form the
+  // user's mid-typing elsewhere on the screen. The two calls run
+  // concurrently, not one-after-the-other — otherwise a slow or failing
+  // Calendar call would delay the Gmail panel behind it for no reason.
+  _loadGoogleData(root) {
+    const google = HeroOS.services.google;
+    if (!google || !google.isConnected()) return;
+
+    const calPanel = root.querySelector('#google-cal-panel');
+    const gmailPanel = root.querySelector('#gmail-panel');
+
+    google.todaysEvents().then((events) => {
+      if (!calPanel || !document.body.contains(calPanel)) return; // navigated away
+      const html = events.length
+        ? `<div class="schedule-timeline">${events.map((e) => this._googleEventRow(e)).join('')}</div>`
+        : `<p class="empty-inline">Nothing on your Google Calendar today.</p>`;
+      calPanel.innerHTML = `<div class="panel-eyebrow">Google Calendar &mdash; Today</div>${html}`;
+    }).catch(() => {
+      if (calPanel && document.body.contains(calPanel)) {
+        calPanel.innerHTML = `<div class="panel-eyebrow">Google Calendar &mdash; Today</div><p class="empty-inline">Couldn't reach Google Calendar &mdash; try reconnecting in Settings.</p>`;
+      }
+    });
+
+    google.unreadCount().then((count) => {
+      if (!gmailPanel || !document.body.contains(gmailPanel)) return;
+      gmailPanel.innerHTML = `<div class="panel-eyebrow">Gmail</div><p>${count} unread.</p>`;
+    }).catch(() => {
+      if (gmailPanel && document.body.contains(gmailPanel)) {
+        gmailPanel.innerHTML = `<div class="panel-eyebrow">Gmail</div><p class="empty-inline">Couldn't reach Gmail &mdash; try reconnecting in Settings.</p>`;
+      }
+    });
+  },
+
+  _googleEventRow(e) {
+    const { escapeHtml } = HeroOS.utils;
+    let timeLabel = 'All day';
+    if (!e.allDay && e.start) {
+      const d = new Date(e.start);
+      timeLabel = HeroOS.utils.formatTime(d);
+    }
+    return `
+      <div class="schedule-event">
+        <span class="schedule-event-time">${escapeHtml(timeLabel)}</span>
+        <span class="schedule-event-title">${escapeHtml(e.title)}${e.location ? ' &mdash; ' + escapeHtml(e.location) : ''}</span>
+      </div>
+    `;
   },
 
   _eventRow(e) {

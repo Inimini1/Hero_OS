@@ -1,6 +1,6 @@
 // Hero OS service worker — app-shell caching for offline/installable use.
 // Bump CACHE_NAME whenever any precached file changes so clients update cleanly.
-const CACHE_NAME = 'hero-os-v1';
+const CACHE_NAME = 'hero-os-v2';
 
 const PRECACHE_URLS = [
   './',
@@ -14,6 +14,7 @@ const PRECACHE_URLS = [
   './js/services/ai.js',
   './js/services/hardware.js',
   './js/services/nfc.js',
+  './js/services/google.js',
   './js/keyboard.js',
   './js/commandPalette.js',
   './js/views/dashboard.js',
