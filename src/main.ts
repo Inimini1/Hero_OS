@@ -82,6 +82,25 @@ document.addEventListener('visibilitychange', () => {
   audio.handleVisibility(document.hidden);
 });
 
+// Mobile: request fullscreen + lock orientation on first interaction
+let _mobileSetup = false;
+function _setupMobile(): void {
+  if (_mobileSetup) return;
+  _mobileSetup = true;
+  const el = document.documentElement;
+  if (el.requestFullscreen) {
+    el.requestFullscreen().catch(() => {});
+  } else if ((el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen) {
+    (el as unknown as { webkitRequestFullscreen: () => void }).webkitRequestFullscreen();
+  }
+  const screen = window.screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } };
+  if (screen.orientation?.lock) {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
+}
+document.addEventListener('touchstart', _setupMobile, { once: true });
+document.addEventListener('click', _setupMobile, { once: true });
+
 // Debug toggle
 window.addEventListener('keydown', e => {
   if (e.code === 'Backquote') debug.toggle();
