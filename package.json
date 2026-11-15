@@ -1,7 +1,7 @@
 {
   "name": "rocket-rascal",
   "version": "1.0.0",
-  "description": "Rocket Rascal – An endless jetpack runner",
+  "description": "Rocket Rascal \u2013 An endless jetpack runner",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "shots": "node scripts/shots.mjs"
   },
   "devDependencies": {
     "typescript": "^5.3.3",

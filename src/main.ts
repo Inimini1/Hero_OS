@@ -20,6 +20,8 @@ import type { CameraState } from './render/effects';
 import { drawMenuScene, drawGameOverScene, drawShopScene, drawMissionsScene, drawSettingsScene, drawTutorial, drawSpinMachine, hitButton, pickSpinPrize, OUTFIT_COSTS, JETPACK_COSTS } from './render/ui';
 import type { SpinPrize, Button } from './render/ui';
 import { DebugOverlay } from './debug';
+import { parseDebugRequest, buildStagedWorld, stepStagedWorld } from './debugScene';
+import type { DebugMode } from './debugScene';
 
 type Scene =
   | 'boot'
@@ -57,6 +59,9 @@ let zoneBannerName = '';
 let vehicleBannerAlpha = 0;
 let vehicleBannerName = '';
 let shopTab = 0;
+// Set while a ?zone/?vehicle/?hazard/?state scene is staged; cleared when a real run starts.
+let stagedMode: DebugMode | null = null;
+let showHud = true;
 
 interface CoinPopup { val: number; life: number; }
 let coinPopups: CoinPopup[] = [];
@@ -111,6 +116,7 @@ window.addEventListener('keydown', e => {
 // ── Scene transitions ──────────────────────────────────────────────────────
 
 function startRun(daily = false): void {
+  stagedMode = null;
   isDaily = daily;
   const seed = daily ? dailySeed() : Math.floor(Math.random() * 0xffffffff);
   const gadgets = save.gadgetSlots.map(s => ({ id: s.id, level: s.id ? (save.gadgetLevels[s.id] ?? 0) : 0 })) as [ReturnType<typeof createGadgetSlot>, ReturnType<typeof createGadgetSlot>];
@@ -348,6 +354,15 @@ function applySpinPrize(): void {
 // ── Sim tick ───────────────────────────────────────────────────────────────
 
 function tick(holding: boolean): void {
+  if (stagedMode === 'frozen' || stagedMode === 'live') {
+    if (stagedMode === 'live' && scene === 'run' && simState) {
+      prevHeroY = simState.hero.y;
+      stepStagedWorld(simState);
+    }
+    input.pollGamepad();
+    return;
+  }
+
   if (scene === 'run' && simState) {
     prevHeroY = simState.hero.y;
     tickWorld(simState, holding);
@@ -463,6 +478,7 @@ function render(interp: number, dt: number): void {
   }
 
   input.endFrame();
+  canvas.dataset['ready'] = '1';
 }
 
 function renderGameScene(interp: number): void {
@@ -494,7 +510,8 @@ function renderGameScene(interp: number): void {
   drawSpinTokens(ctx, simState.spinTokens);
 
   // Particles (behind hero) — skip smoke/casing when fps is low
-  const slowFrame = _lastFrameMs > CFG.PARTICLE_ADAPTIVE_THRESHOLD;
+  // Staged debug scenes always draw every particle so screenshots are repeatable.
+  const slowFrame = stagedMode === null && _lastFrameMs > CFG.PARTICLE_ADAPTIVE_THRESHOLD;
   const bgParticles = simState.particles.filter(p => {
     if (!p.active) return false;
     if (p.kind === 'pickup_glow') return false;
@@ -527,7 +544,7 @@ function renderGameScene(interp: number): void {
   if (vehicleBannerAlpha > 0) drawVehicleBanner(ctx, vehicleBannerName, vehicleBannerAlpha);
 
   // HUD (no shake)
-  if (!simState.dead) {
+  if (!simState.dead && showHud) {
     drawHUD(ctx, simState, save.bestDistance, scene === 'paused', simState.tick);
   }
 
@@ -675,13 +692,52 @@ const loop = new GameLoop(
 const loading = document.getElementById('loading');
 if (loading) loading.style.display = 'none';
 
-// Check for debug/jump query param
+// Scene-jump query params: ?zone= ?vehicle= ?hazard= ?state= (see ART.md / scripts/shots.mjs)
 const params = new URLSearchParams(location.search);
 if (params.has('debug')) debug.toggle();
-if (params.has('zone')) {
-  startRun();
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  simState!.distance = parseInt(params.get('zone') ?? '0') * CFG.ZONE_DIST * CFG.UNITS_PER_METER;
+const debugReq = parseDebugRequest(location.search);
+if (debugReq) {
+  showHud = debugReq.hud;
+  if (debugReq.mode === 'play') {
+    startRun();
+    const run = simState as unknown as WorldState;
+    run.distance = debugReq.zone * CFG.ZONE_DIST * CFG.UNITS_PER_METER;
+    run.hero.outfit = debugReq.outfit;
+    run.hero.jetpackStyle = debugReq.jetpack;
+    if (debugReq.vehicle) {
+      run.vehicle.active = true;
+      run.vehicle.kind = debugReq.vehicle;
+      run.vehicle.hp = 1;
+      run.vehicle.serpentY = run.hero.y;
+    }
+  } else {
+    stagedMode = debugReq.mode;
+    switch (debugReq.state) {
+      case 'menu': scene = 'menu'; break;
+      case 'shop': scene = 'shop'; shopTab = debugReq.tab; break;
+      case 'missions': scene = 'missions'; break;
+      case 'settings': scene = 'settings'; break;
+      default: {
+        const staged = buildStagedWorld(debugReq);
+        simState = staged;
+        prevHeroY = staged.hero.y;
+        scene = 'run';
+        if (debugReq.state === 'paused') scene = 'paused';
+        if (debugReq.state === 'gameover' || debugReq.state === 'gameover_best') {
+          gameoverShown = true;
+          isNewBest = debugReq.state === 'gameover_best';
+          scene = 'gameover';
+        }
+        if (debugReq.state === 'spin' || debugReq.state === 'spin_done') {
+          spinPrize = 'coins_big';
+          spinDone = debugReq.state === 'spin_done';
+          spinActive = !spinDone;
+          spinProgress = spinDone ? 1 : 0.5;
+          scene = 'spin';
+        }
+      }
+    }
+  }
 }
 
 loop.start();

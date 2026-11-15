@@ -58,3 +58,22 @@ npm run lint
 - Entity pools (pre-allocated arrays, no GC in the hot path)
 - mulberry32 seeded PRNG for deterministic daily seeds and reproducible runs
 - localStorage save with version migration
+
+## Debug scenes and screenshots
+
+Query params jump straight to a staged, frozen scene (no save data is written):
+
+| Param | Values |
+| --- | --- |
+| `zone` | `lab`, `cavern`, `sky`, `neon`, `space` (or `0`-`4`) |
+| `vehicle` | `bounce_buggy`, `gravity_suit`, `sky_serpent`, `stomp_mech`, `wave_sub`, `drill_rocket` |
+| `hazard` | comma list of `zapper`, `zapper_rot`, `zapper_slide`, `laser_warn`, `laser_fire`, `missile_warn`, `missile`, `missile_homing`, `salvo`, `pendulum`, `vent`, `coins`, `token`, `crate`, `all` |
+| `state` | `menu`, `floor`, `flying`, `falling`, `ceiling`, `dead`, `paused`, `gameover`, `gameover_best`, `shop`, `missions`, `settings`, `spin`, `spin_done` |
+
+Modifiers: `live=1` animates the staged scene in place, `play=1` starts a real run in that zone/vehicle,
+`t=<ticks>` sets the animation frame, `hud=0` hides the HUD, `outfit=`, `jetpack=`, `tab=` (shop tab).
+
+Example: `http://localhost:5173/?zone=neon&hazard=zapper,missile&state=flying`
+
+`npm run shots` captures every scene to `shots/` (git-ignored) with a contact sheet at `shots/index.html`.
+Options: `--only <name>`, `--out <dir>`, `--url <running dev server>`.
