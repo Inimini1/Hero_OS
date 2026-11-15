@@ -1,9 +1,9 @@
 import { CFG } from '../config';
 import type { SaveData } from '../save';
-import type { Mission } from '../sim/types';
+import type { Mission, Hero, Vehicle } from '../sim/types';
 import { getMissionDescription } from '../sim/missions';
 import { GADGET_DEFS } from '../sim/gadgets';
-import { OUTFIT_COLORS, JETPACK_STYLES } from './hero';
+import { drawHero, OUTFIT_COLORS, JETPACK_STYLES } from './hero';
 
 export interface Button {
   x: number; y: number; w: number; h: number;
@@ -86,8 +86,8 @@ export function drawMenuScene(
   ctx.fillText('RASCAL', W / 2, 155);
   ctx.shadowBlur = 0;
 
-  // Hero walking animation
-  drawMenuHero(ctx, 180 + Math.sin(heroAnim * 0.05) * 3, H - 90, heroAnim);
+  // Hero walking animation (uses real drawHero with player's outfit/jetpack)
+  drawMenuHero(ctx, 180 + Math.sin(heroAnim * 0.05) * 3, H - 90, heroAnim, save.outfit, save.jetpackStyle);
 
   // Best distance
   if (save.bestDistance > 0) {
@@ -131,38 +131,34 @@ export function drawMenuScene(
   return buttons;
 }
 
-function drawMenuHero(ctx: CanvasRenderingContext2D, x: number, y: number, frame: number): void {
+function drawMenuHero(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  frame: number,
+  outfitIdx: number,
+  jetpackStyle: number
+): void {
   ctx.save();
   ctx.translate(x, y);
+  ctx.scale(1.5, 1.5);
 
-  // Simple animated character on the menu background
-  const run = Math.sin(frame * 0.3) * 0.4;
-  ctx.fillStyle = '#3355cc';
-  ctx.fillRect(-10, -30, 20, 24);
-
-  // Head
-  ctx.fillStyle = '#ffcc99';
-  ctx.beginPath();
-  ctx.arc(0, -38, 10, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Legs
-  ctx.fillStyle = '#223388';
-  ctx.save();
-  ctx.translate(-4, -8);
-  ctx.rotate(run);
-  ctx.fillRect(-3, 0, 6, 14);
-  ctx.restore();
-  ctx.save();
-  ctx.translate(4, -8);
-  ctx.rotate(-run);
-  ctx.fillRect(-3, 0, 6, 14);
-  ctx.restore();
-
-  // Jetpack
-  ctx.fillStyle = '#445566';
-  ctx.fillRect(-18, -28, 8, 18);
-
+  const hero: Hero = {
+    x: 0, y: 0,
+    vy: 0,
+    state: 'floor',
+    thrustGain: 0.25 + Math.sin(frame * 0.04) * 0.18,
+    deathTimer: 0,
+    invulnTicks: 0,
+    outfit: outfitIdx,
+    jetpackStyle,
+    floorRunFrame: frame,
+  };
+  const vehicle: Vehicle = {
+    active: false, kind: 'bounce_buggy', hp: 0,
+    breakTimer: 0, vy: 0, flipped: false,
+    serpentY: 0, mechFrame: 0, drillTimer: 0,
+  };
+  drawHero(ctx, hero, vehicle, 1, 0, frame);
   ctx.restore();
 }
 
@@ -281,6 +277,60 @@ function drawStatRow(ctx: CanvasRenderingContext2D, label: string, value: string
   ctx.fillText(value, cx + 278, y + 1);
 }
 
+// ── Outfit / jetpack swatch helpers ────────────────────────────────────────
+
+function drawOutfitSwatch(
+  ctx: CanvasRenderingContext2D,
+  ox: number, oy: number,
+  outfitIdx: number,
+  selected: boolean,
+  unlocked: boolean
+): void {
+  const outfit = OUTFIT_COLORS[outfitIdx] ?? OUTFIT_COLORS[0]!;
+  ctx.fillStyle = unlocked ? 'rgba(20,20,45,0.9)' : '#111122';
+  roundRect(ctx, ox, oy, 44, 44);
+  ctx.fill();
+
+  if (unlocked) {
+    ctx.save();
+    ctx.translate(ox + 22, oy + 36);
+    ctx.scale(0.68, 0.68);
+    // Body
+    ctx.fillStyle = outfit.body;
+    ctx.beginPath();
+    ctx.ellipse(0, -4, 11, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Head
+    ctx.fillStyle = outfit.skin;
+    ctx.beginPath();
+    ctx.ellipse(0, -18, 9, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Hair
+    ctx.fillStyle = outfit.hair;
+    ctx.beginPath();
+    ctx.ellipse(0, -24, 9, 5, 0, 0, Math.PI);
+    ctx.fill();
+    // Legs
+    ctx.fillStyle = outfit.pants;
+    ctx.fillRect(-6, 6, 5, 10);
+    ctx.fillRect(1, 6, 5, 10);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#666677';
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🔒', ox + 22, oy + 22); // 🔒 without emoji literal
+  }
+
+  if (selected) {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    roundRect(ctx, ox, oy, 44, 44);
+    ctx.stroke();
+  }
+}
+
 // ── Shop Scene ─────────────────────────────────────────────────────────────
 
 export function drawShopScene(
@@ -373,7 +423,7 @@ export function drawShopScene(
   ctx.fillText('OUTFITS', W/2 - 200, cosY);
   ctx.fillText('JETPACKS', W/2 + 200, cosY);
 
-  // Outfit swatches
+  // Outfit swatches (mini-hero silhouettes)
   const outfitGridX = W/2 - 400;
   for (let i = 0; i < 10; i++) {
     const col2 = i % 5;
@@ -381,34 +431,9 @@ export function drawShopScene(
     const ox = outfitGridX + col2 * 56 + 10;
     const oy = cosY + 30 + row2 * 60;
     const unlocked = save.unlockedOutfits.includes(i);
-    const outfit = OUTFIT_COLORS[i] ?? OUTFIT_COLORS[0]!;
-
-    ctx.fillStyle = unlocked ? outfit.body : '#222233';
-    roundRect(ctx, ox, oy, 44, 44);
-    ctx.fill();
-    if (save.outfit === i) {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    if (!unlocked) {
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      roundRect(ctx, ox, oy, 44, 44);
-      ctx.fill();
-      ctx.fillStyle = '#666677';
-      ctx.font = '20px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🔒', ox + 22, oy + 22);
-    }
-
+    drawOutfitSwatch(ctx, ox, oy, i, save.outfit === i, unlocked);
     if (unlocked) {
-      buttons.push({
-        x: ox, y: oy, w: 44, h: 44,
-        label: '', color: 'transparent',
-        action: `outfit_${i}`,
-      });
+      buttons.push({ x: ox, y: oy, w: 44, h: 44, label: '', color: 'transparent', action: `outfit_${i}` });
     }
   }
 

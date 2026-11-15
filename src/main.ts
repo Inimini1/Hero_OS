@@ -55,6 +55,9 @@ let isDaily = false;
 let zoneBannerAlpha = 0;
 let zoneBannerName = '';
 
+interface CoinPopup { val: number; life: number; }
+let coinPopups: CoinPopup[] = [];
+
 // ── Setup ──────────────────────────────────────────────────────────────────
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -169,6 +172,7 @@ function handleUIAction(action: string): void {
     case 'revive': if (scene === 'gameover') tryRevive(); break;
     case 'spin': startSpin(); break;
     case 'continue': scene = 'menu'; break;
+    case 'resume': if (scene === 'paused') togglePause(); break;
 
     // Settings
     case 'music_vol_up': save.musicVolume = Math.min(1, save.musicVolume + 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
@@ -211,6 +215,7 @@ function handleUIActionSync(action: string): void {
     case 'revive': if (scene === 'gameover') tryRevive(); break;
     case 'spin': startSpin(); break;
     case 'continue': scene = 'menu'; break;
+    case 'resume': if (scene === 'paused') togglePause(); break;
     case 'music_vol_up': save.musicVolume = Math.min(1, save.musicVolume + 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
     case 'music_vol_down': save.musicVolume = Math.max(0, save.musicVolume - 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
     case 'sfx_vol_up': save.sfxVolume = Math.min(1, save.sfxVolume + 0.1); audio.setSfxVolume(save.sfxVolume); writeSave(save); break;
@@ -295,7 +300,10 @@ function tick(holding: boolean): void {
     const events = simState._events;
     for (const evt of events) {
       switch (evt.type) {
-        case 'coin_collected': audio.play('coin'); break;
+        case 'coin_collected':
+          audio.play('coin');
+          coinPopups.push({ val: evt.value ?? 1, life: 1.0 });
+          break;
         case 'spin_token_collected': audio.play('token_collect'); break;
         case 'hero_died': audio.play('explosion'); break;
         case 'vehicle_start': audio.play('vehicle_pickup'); break;
@@ -330,6 +338,10 @@ function tick(holding: boolean): void {
     if (zoneBannerAlpha > 0) {
       zoneBannerAlpha = Math.max(0, zoneBannerAlpha - 0.004);
     }
+
+    // Coin popup fade
+    for (const p of coinPopups) p.life -= 0.018;
+    coinPopups = coinPopups.filter(p => p.life > 0);
 
     // Trigger game over
     if (simState.dead && simState.hero.deathTimer > 90 && !gameoverShown) {
@@ -437,6 +449,20 @@ function renderGameScene(interp: number): void {
     drawHUD(ctx, simState, save.bestDistance, scene === 'paused', simState.tick);
   }
 
+  // Coin popup flyovers
+  for (const p of coinPopups) {
+    const alpha = Math.min(1, p.life * 2.5);
+    const drift = (1 - p.life) * 28;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffdd00';
+    ctx.font = 'bold 15px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`+${p.val}`, CFG.WORLD_W - 184, 77 - drift);
+    ctx.restore();
+  }
+
   // Tutorial
   drawTutorial(ctx, tutorialAlpha);
 
@@ -445,8 +471,7 @@ function renderGameScene(interp: number): void {
   debug.drawHitboxes(ctx, simState);
 
   if (scene === 'paused') {
-    uiButtons = [];
-    drawPauseOverlay(ctx, simState.missions, simState.tick);
+    uiButtons = drawPauseOverlay(ctx, simState.missions, simState.tick);
   } else {
     uiButtons = [];
   }
