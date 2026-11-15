@@ -1,4 +1,4 @@
-const CACHE = 'rocket-rascal-v1';
+const CACHE = 'rocket-rascal-v2';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
