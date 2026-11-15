@@ -243,6 +243,64 @@ export function applyVentForce(vents: VacuumVent[], hx: number, hy: number, spee
   return 0;
 }
 
+const NEAR_MISS_EXTRA = 28; // pixels beyond hitRadius that counts as near-miss
+
+/** Returns true if any zapper just barely missed (between hitRadius and hitRadius+NEAR_MISS_EXTRA). */
+export function checkZapperNearMiss(zappers: Zapper[], hx: number, hy: number, hr: number): boolean {
+  const inner = hr;
+  const outer = hr + NEAR_MISS_EXTRA;
+  for (let i = 0; i < zappers.length; i++) {
+    const z = zappers[i] as Zapper;
+    if (!z.active) continue;
+    const hw = z.len / 2;
+    const hh = 5;
+    const cos = Math.cos(-z.angle);
+    const sin = Math.sin(-z.angle);
+    const dx = hx - z.x, dy = hy - z.y;
+    const lx = dx * cos - dy * sin;
+    const ly = dx * sin + dy * cos;
+    const nx = Math.max(-hw, Math.min(hw, lx));
+    const ny = Math.max(-hh, Math.min(hh, ly));
+    const ex = lx - nx, ey = ly - ny;
+    const d2 = ex * ex + ey * ey;
+    if (d2 < outer * outer && d2 >= inner * inner) return true;
+  }
+  return false;
+}
+
+/** Returns true if a firing laser just barely missed. */
+export function checkLaserNearMiss(lasers: Laser[], hx: number, hy: number, hr: number): boolean {
+  void hx;
+  for (let i = 0; i < lasers.length; i++) {
+    const l = lasers[i] as Laser;
+    if (!l.active || l.state !== 'firing') continue;
+    const dist = Math.abs(hy - l.y);
+    if (dist >= hr + 4 && dist < hr + NEAR_MISS_EXTRA + 4) return true;
+  }
+  return false;
+}
+
+/** Returns true if any missile just barely missed. Uses a per-missile flag to fire once. */
+export function checkMissileNearMiss(missiles: Missile[], hx: number, hy: number, hr: number): boolean {
+  const inner = hr + CFG.MISSILE_RADIUS;
+  const outer = inner + NEAR_MISS_EXTRA;
+  for (let i = 0; i < missiles.length; i++) {
+    const m = missiles[i] as Missile;
+    if (!m.active || m.warnTimer > 0) continue;
+    // Only fire once per missile pass (trailing by hero)
+    if (m.x > hx) continue;
+    const rec = m as unknown as Record<string, unknown>;
+    if (rec['_nearMissed']) continue;
+    const dx = hx - m.x, dy = hy - m.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < outer * outer && d2 >= inner * inner) {
+      rec['_nearMissed'] = true;
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Deactivate any missile that the hero (or vehicle) collides with. Returns count. */
 export function destroyMissilesAt(
   missiles: Missile[], x: number, y: number, radius: number

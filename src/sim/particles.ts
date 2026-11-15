@@ -172,6 +172,25 @@ export function emitPickupGlow(pool: Particle[], rng: Rng, x: number, y: number)
   }
 }
 
+/** Missile smoke trail — called per active missile each tick. */
+export function emitMissileSmoke(pool: Particle[], rng: Rng, x: number, y: number): void {
+  if (rng() > 0.5) return; // throttle
+  const isHot = rng() > 0.6;
+  spawnParticle(pool, {
+    kind: 'missile_smoke',
+    x: x + 10 + rng() * 4,
+    y: y + (rng() - 0.5) * 4,
+    vx: 1.5 + rng() * 1.5, // trails behind (missile moves left)
+    vy: (rng() - 0.5) * 1.2,
+    decay: 0.025 + rng() * 0.02,
+    size: isHot ? 5 + rng() * 5 : 4 + rng() * 4,
+    r: isHot ? 255 : 120,
+    g: isHot ? 160 : 120,
+    b: isHot ? 40 : 120,
+    gravity: -0.015,
+  });
+}
+
 /** Count active particles. */
 export function countActiveParticles(pool: Particle[]): number {
   let n = 0;

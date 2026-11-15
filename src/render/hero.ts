@@ -21,10 +21,15 @@ export function drawHero(
   ctx.save();
   ctx.translate(x, y);
 
-  // Tilt based on velocity
-  const tilt = hero.state === 'flying' ? -0.15 : 0;
-  const thrustTilt = -hero.thrustGain * 0.12;
-  ctx.rotate(tilt + thrustTilt);
+  // Death spin
+  if (hero.state === 'dead') {
+    ctx.rotate(hero.deathTimer * 0.12);
+  } else {
+    // Tilt based on velocity
+    const tilt = hero.state === 'flying' ? -0.15 : 0;
+    const thrustTilt = -hero.thrustGain * 0.12;
+    ctx.rotate(tilt + thrustTilt);
+  }
 
   // Flash when invulnerable
   if (hero.invulnTicks > 0 && Math.floor(hero.invulnTicks / 4) % 2 === 0) {
@@ -90,30 +95,77 @@ export function drawHero(
 }
 
 function drawJetpack(ctx: CanvasRenderingContext2D, style: number, thrustGain: number): void {
-  const styles = JETPACK_STYLES;
-  const s = styles[style % styles.length] ?? styles[0]!;
+  const s = JETPACK_STYLES[style % JETPACK_STYLES.length] ?? JETPACK_STYLES[0]!;
 
-  ctx.fillStyle = s.body;
-  ctx.fillRect(-18, -14, 8, 22);
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(-18, -14, 8, 22);
-
-  // Nozzle
-  ctx.fillStyle = s.nozzle;
-  ctx.fillRect(-19, 6, 10, 5);
-
-  // Glow when thrusting
-  if (thrustGain > 0.05) {
-    const r = 4 + thrustGain * 10;
-    const grd = ctx.createRadialGradient(-14, 12, 0, -14, 12, r);
-    grd.addColorStop(0, s.flame + 'cc');
+  // Flame / exhaust glow (behind everything else)
+  if (thrustGain > 0.02) {
+    const flameLen = 8 + thrustGain * 22;
+    const fg = ctx.createLinearGradient(-19, 0, -19 - flameLen, 0);
+    fg.addColorStop(0, s.flame + 'dd');
+    fg.addColorStop(0.4, s.flame + '88');
+    fg.addColorStop(1, s.flame + '00');
+    ctx.fillStyle = fg;
+    // Upper nozzle flame
+    ctx.beginPath();
+    ctx.moveTo(-19, -4);
+    ctx.lineTo(-19 - flameLen, -1 + thrustGain * 2);
+    ctx.lineTo(-19, -1);
+    ctx.closePath();
+    ctx.fill();
+    // Lower nozzle flame
+    ctx.beginPath();
+    ctx.moveTo(-19, 10);
+    ctx.lineTo(-19 - flameLen, 7 - thrustGain * 2);
+    ctx.lineTo(-19, 7);
+    ctx.closePath();
+    ctx.fill();
+    // Glow halo
+    const grd = ctx.createRadialGradient(-22, 3, 0, -22, 3, 12 + thrustGain * 10);
+    grd.addColorStop(0, s.flame + '55');
     grd.addColorStop(1, s.flame + '00');
     ctx.fillStyle = grd;
     ctx.beginPath();
-    ctx.ellipse(-14, 12, r * 0.5, r, 0, 0, Math.PI * 2);
+    ctx.arc(-22, 3, 12 + thrustGain * 10, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  // ── Main pack body ────────────────────────────────────────────────────
+  ctx.fillStyle = s.body;
+  // Rounded rect body
+  ctx.beginPath();
+  ctx.roundRect(-20, -15, 10, 24, 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Panel highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(-19, -14, 8, 8);
+
+  // Tank rivet details
+  ctx.fillStyle = s.nozzle;
+  ctx.fillRect(-18, -6, 7, 2);
+  ctx.fillRect(-18, 0, 7, 2);
+
+  // ── Upper nozzle ──────────────────────────────────────────────────────
+  ctx.fillStyle = s.nozzle;
+  ctx.fillRect(-21, -11, 4, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(-21, -8, 4, 3);
+
+  // ── Lower nozzle ──────────────────────────────────────────────────────
+  ctx.fillStyle = s.nozzle;
+  ctx.fillRect(-21, 5, 4, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(-21, 5, 4, 3);
+
+  // Status LED (always visible)
+  const ledColor = thrustGain > 0.1 ? s.flame : '#00ff88';
+  ctx.fillStyle = ledColor;
+  ctx.beginPath();
+  ctx.arc(-15, -11, 2, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawRunLegs(ctx: CanvasRenderingContext2D, frame: number, color: string): void {

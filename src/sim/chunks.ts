@@ -30,6 +30,7 @@ export interface ChunkSpawn {
   kind?: ZapperKind | MissileKind | VehicleKind;
   len?: number;     // zapper length
   amplitude?: number; // for sliding zappers
+  salvoIndex?: number; // 0-2 for salvo missiles
 }
 
 export interface ChunkTemplate {

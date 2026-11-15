@@ -6,12 +6,13 @@ import { createVehicle, tickVehicle, tickVehicleCrates, hitVehicle, vehicleHitRa
 import {
   tickZappers, tickLasers, tickMissiles, tickPendulums, tickVents,
   checkZapperHit, checkLaserHit, checkMissileHit, checkPendulumHit,
-  destroyMissilesAt,
+  checkZapperNearMiss, checkLaserNearMiss, checkMissileNearMiss,
+  applyVentForce, destroyMissilesAt,
 } from './hazards';
 import { createCoinPool, createSpinTokenPool, tickCoins } from './coins';
 import {
   createParticlePool, tickParticles,
-  emitJetpackFire, emitCoinCollect, emitExplosion, emitPickupGlow,
+  emitJetpackFire, emitCoinCollect, emitExplosion, emitPickupGlow, emitMissileSmoke,
 } from './particles';
 import { generateMissions, updateMissions } from './missions';
 import { spawnNextChunk, getDifficulty, getZoneIndex, cullOffscreen } from './director';
@@ -138,6 +139,15 @@ export function tickWorld(state: WorldState, holding: boolean): void {
     tickVehicle(state.vehicle, state.hero, holding, scrollDelta);
   }
 
+  // ── Vent force on hero ────────────────────────────────────────────────
+  if (!inVehicle && !state.dead) {
+    const ventDx = applyVentForce(state.vents, state.hero.x, state.hero.y, state.speed);
+    if (ventDx !== 0) {
+      // Vents pull hero; simulate as a horizontal push (hero is x-fixed, so just bounce)
+      state.hero.vy += ventDx * 0.4;
+    }
+  }
+
   // ── Hazard tick ───────────────────────────────────────────────────────
   tickZappers(state.zappers, scrollDelta);
   tickLasers(state.lasers, scrollDelta, 0);
@@ -233,6 +243,25 @@ export function tickWorld(state: WorldState, holding: boolean): void {
         state._events.push({ type: 'hero_died', x: hx, y: hy });
         state.vehicle.active = false;
       }
+    }
+  }
+
+  // ── Near-miss detection ───────────────────────────────────────────────
+  if (!state.dead && state.hero.invulnTicks <= 0) {
+    const hx = state.hero.x, hy = state.hero.y;
+    const nearMiss =
+      checkZapperNearMiss(state.zappers, hx, hy, CFG.HERO_HIT_RADIUS) ||
+      checkLaserNearMiss(state.lasers, hx, hy, CFG.HERO_HIT_RADIUS) ||
+      checkMissileNearMiss(state.missiles, hx, hy, CFG.HERO_HIT_RADIUS);
+    if (nearMiss) {
+      state._events.push({ type: 'near_miss' });
+    }
+  }
+
+  // ── Missile smoke particles ───────────────────────────────────────────
+  for (const m of state.missiles) {
+    if (m.active && m.warnTimer <= 0 && m.x > 0 && m.x < CFG.WORLD_W + 100) {
+      emitMissileSmoke(state.particles, state.chunkRng, m.x, m.y);
     }
   }
 

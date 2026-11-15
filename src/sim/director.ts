@@ -87,9 +87,8 @@ function spawnFromDescriptor(state: WorldState, spawn: ChunkSpawn, wx: number, r
         spawn.y ?? CFG.WORLD_H / 2,
         wx + CFG.WORLD_W,
         (spawn.kind as Parameters<typeof makeMissile>[2]) ?? 'straight',
-        spawn as unknown as number
+        spawn.salvoIndex ?? 0
       );
-      m.x = wx + CFG.WORLD_W;
       state.missiles.push(m);
       break;
     }
