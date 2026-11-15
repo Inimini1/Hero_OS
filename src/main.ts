@@ -1,0 +1,533 @@
+import { CFG } from './config';
+import { GameLoop } from './loop';
+import { InputManager } from './input';
+import { AudioManager } from './audio';
+import { loadSave, writeSave, recordRun, spendCoins } from './save';
+import type { SaveData } from './save';
+import { createWorld, tickWorld } from './sim/world';
+import type { WorldState } from './sim/types';
+import { createGadgetSlot } from './sim/gadgets';
+import { generateMissions } from './sim/missions';
+import { mulberry32, dailySeed } from './prng';
+import { setupCanvas } from './render/canvas';
+import { drawBackground, ZONE_THEMES } from './render/background';
+import { drawHero } from './render/hero';
+import { drawZappers, drawLasers, drawMissiles, drawPendulums, drawVents } from './render/hazards';
+import { drawParticles, drawCoins, drawSpinTokens, drawVehicleCrates } from './render/particles';
+import { drawHUD, drawPauseOverlay } from './render/hud';
+import { drawFloorAndCeiling, drawVignette, drawZoneFade, applyCamera, tickCamera, createCamera } from './render/effects';
+import type { CameraState } from './render/effects';
+import { drawMenuScene, drawGameOverScene, drawShopScene, drawMissionsScene, drawSettingsScene, drawTutorial, drawSpinMachine, hitButton, pickSpinPrize } from './render/ui';
+import type { SpinPrize, Button } from './render/ui';
+import { DebugOverlay } from './debug';
+
+type Scene =
+  | 'boot'
+  | 'menu'
+  | 'run'
+  | 'paused'
+  | 'gameover'
+  | 'shop'
+  | 'missions'
+  | 'settings'
+  | 'spin';
+
+// ── App State ──────────────────────────────────────────────────────────────
+
+let scene: Scene = 'boot';
+let simState: WorldState | null = null;
+let prevHeroY: number = CFG.FLOOR_Y;
+let camera: CameraState = createCamera();
+const debug = new DebugOverlay();
+let save = loadSave();
+let menuHeroAnim = 0;
+let uiButtons: Button[] = [];
+let reviveUsed = false;
+let isNewBest = false;
+let gameoverShown = false;
+let spinProgress = 0;
+let spinPrize: SpinPrize = 'nothing';
+let spinActive = false;
+let spinDone = false;
+let tutorialAlpha = 0;
+let tutorialTimer = 0;
+let isDaily = false;
+
+// ── Setup ──────────────────────────────────────────────────────────────────
+
+const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+const { ctx, cssW, cssH, offsetX, offsetY, scaleX } = setupCanvas(canvas);
+const input = new InputManager(canvas);
+const audio = new AudioManager();
+
+input.updateScale(CFG.WORLD_W, CFG.WORLD_H, cssW, cssH, offsetX, offsetY);
+
+// Resize handler
+window.addEventListener('resize', () => {
+  const setup = setupCanvas(canvas);
+  input.updateScale(CFG.WORLD_W, CFG.WORLD_H, setup.cssW, setup.cssH, setup.offsetX, setup.offsetY);
+});
+
+// Page visibility
+document.addEventListener('visibilitychange', () => {
+  audio.handleVisibility(document.hidden);
+});
+
+// Debug toggle
+window.addEventListener('keydown', e => {
+  if (e.code === 'Backquote') debug.toggle();
+  if (e.code === 'Escape' && scene === 'run') togglePause();
+  if (e.code === 'Escape' && scene === 'paused') togglePause();
+});
+
+// ── Scene transitions ──────────────────────────────────────────────────────
+
+function startRun(daily = false): void {
+  isDaily = daily;
+  const seed = daily ? dailySeed() : Math.floor(Math.random() * 0xffffffff);
+  const gadgets = save.gadgetSlots.map(s => ({ id: s.id, level: s.id ? (save.gadgetLevels[s.id] ?? 0) : 0 })) as [ReturnType<typeof createGadgetSlot>, ReturnType<typeof createGadgetSlot>];
+  simState = createWorld(seed, gadgets);
+  simState.hero.outfit = save.outfit;
+  simState.hero.jetpackStyle = save.jetpackStyle;
+  simState.missions = save.pendingMissions.length >= 3
+    ? (save.pendingMissions as typeof simState.missions)
+    : generateMissions(save.rank, mulberry32(seed ^ 0xaaaa));
+  if (save.pendingMissions.length < 3) {
+    save.pendingMissions = simState.missions as unknown as SaveData['pendingMissions'];
+    writeSave(save);
+  }
+  prevHeroY = CFG.FLOOR_Y;
+  camera = createCamera();
+  reviveUsed = false;
+  isNewBest = false;
+  gameoverShown = false;
+  audio.unlock();
+  audio.resetCoinPitch();
+  if (!save.tutorialSeen) {
+    tutorialAlpha = 1;
+    tutorialTimer = 0;
+    save.tutorialSeen = true;
+    writeSave(save);
+  } else {
+    tutorialAlpha = 0;
+  }
+  scene = 'run';
+}
+
+function goToGameOver(): void {
+  if (gameoverShown) return;
+  gameoverShown = true;
+  const state = simState!;
+  const meters = Math.floor(state.distance / CFG.UNITS_PER_METER);
+  isNewBest = recordRun(save, meters, state.coinsThisRun, state.tokensThisRun, state.missions.filter(m => m.completed).length);
+  if (isNewBest) audio.play('new_best');
+  // Update pending missions (replace completed ones)
+  if (state.missions.some(m => m.completed)) {
+    const newMissions = generateMissions(save.rank, mulberry32(Date.now() ^ 0xbeef));
+    save.pendingMissions = state.missions.map((m, i) => m.completed ? (newMissions[i] ?? m) : m) as unknown as SaveData['pendingMissions'];
+    writeSave(save);
+  }
+  scene = 'gameover';
+}
+
+function togglePause(): void {
+  if (!simState) return;
+  simState.paused = !simState.paused;
+  scene = simState.paused ? 'paused' : 'run';
+}
+
+function tryRevive(): void {
+  if (!simState || reviveUsed) return;
+  const cost = save.coins < CFG.REVIVE_BASE_COST ? 0 : CFG.REVIVE_BASE_COST;
+  const actualCost = reviveUsed ? CFG.REVIVE_BASE_COST * CFG.REVIVE_COST_MULT : CFG.REVIVE_BASE_COST;
+  if (!spendCoins(save, actualCost)) return;
+  reviveUsed = true;
+  simState.dead = false;
+  simState.hero.state = 'flying';
+  simState.hero.vy = 0;
+  simState.hero.invulnTicks = CFG.SHIELD_INVULN_TICKS * 2;
+  simState.hero.y = CFG.WORLD_H / 2;
+  gameoverShown = false;
+  audio.play('revive');
+  scene = 'run';
+  void cost;
+}
+
+function handleUIAction(action: string): void {
+  audio.play('ui_click');
+  switch (action) {
+    case 'play': startRun(false); break;
+    case 'daily': startRun(true); break;
+    case 'shop': scene = 'shop'; break;
+    case 'missions': scene = 'missions'; break;
+    case 'settings': scene = 'settings'; break;
+    case 'back': scene = 'menu'; break;
+    case 'retry': startRun(isDaily); break;
+    case 'menu': scene = 'menu'; break;
+    case 'revive': if (scene === 'gameover') tryRevive(); break;
+    case 'spin': startSpin(); break;
+    case 'continue': scene = 'menu'; break;
+
+    // Settings
+    case 'music_vol_up': save.musicVolume = Math.min(1, save.musicVolume + 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
+    case 'music_vol_down': save.musicVolume = Math.max(0, save.musicVolume - 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
+    case 'sfx_vol_up': save.sfxVolume = Math.min(1, save.sfxVolume + 0.1); audio.setSfxVolume(save.sfxVolume); writeSave(save); break;
+    case 'sfx_vol_down': save.sfxVolume = Math.max(0, save.sfxVolume - 0.1); audio.setSfxVolume(save.sfxVolume); writeSave(save); break;
+    case 'toggle_shake': save.screenShake = !save.screenShake; writeSave(save); break;
+    case 'toggle_motion': save.reducedMotion = !save.reducedMotion; writeSave(save); break;
+    case 'toggle_cb': save.colorblindMode = !save.colorblindMode; writeSave(save); break;
+    case 'toggle_lh': save.leftHanded = !save.leftHanded; writeSave(save); break;
+    case 'toggle_mute': save.muted = !save.muted; audio.setMuted(save.muted); writeSave(save); break;
+
+    default:
+      if (action.startsWith('outfit_')) {
+        const idx = parseInt(action.slice(7));
+        if (save.unlockedOutfits.includes(idx)) { save.outfit = idx; writeSave(save); }
+      }
+      if (action.startsWith('jetpack_')) {
+        const idx = parseInt(action.slice(8));
+        if (save.unlockedJetpackStyles.includes(idx)) { save.jetpackStyle = idx; writeSave(save); }
+      }
+      if (action.startsWith('gadget_')) {
+        // handled below via dynamic import
+      }
+  }
+}
+
+// Can't use async in event handler directly, use sync version
+function handleUIActionSync(action: string): void {
+  audio.play('ui_click');
+  switch (action) {
+    case 'play': startRun(false); break;
+    case 'daily': startRun(true); break;
+    case 'shop': scene = 'shop'; break;
+    case 'missions': scene = 'missions'; break;
+    case 'settings': scene = 'settings'; break;
+    case 'back': scene = 'menu'; break;
+    case 'retry': startRun(isDaily); break;
+    case 'menu': scene = 'menu'; break;
+    case 'revive': if (scene === 'gameover') tryRevive(); break;
+    case 'spin': startSpin(); break;
+    case 'continue': scene = 'menu'; break;
+    case 'music_vol_up': save.musicVolume = Math.min(1, save.musicVolume + 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
+    case 'music_vol_down': save.musicVolume = Math.max(0, save.musicVolume - 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
+    case 'sfx_vol_up': save.sfxVolume = Math.min(1, save.sfxVolume + 0.1); audio.setSfxVolume(save.sfxVolume); writeSave(save); break;
+    case 'sfx_vol_down': save.sfxVolume = Math.max(0, save.sfxVolume - 0.1); audio.setSfxVolume(save.sfxVolume); writeSave(save); break;
+    case 'toggle_shake': save.screenShake = !save.screenShake; writeSave(save); break;
+    case 'toggle_motion': save.reducedMotion = !save.reducedMotion; writeSave(save); break;
+    case 'toggle_cb': save.colorblindMode = !save.colorblindMode; writeSave(save); break;
+    case 'toggle_lh': save.leftHanded = !save.leftHanded; writeSave(save); break;
+    case 'toggle_mute': save.muted = !save.muted; audio.setMuted(save.muted); writeSave(save); break;
+    default:
+      if (action.startsWith('outfit_')) {
+        const idx = parseInt(action.slice(7));
+        if (save.unlockedOutfits.includes(idx)) { save.outfit = idx; writeSave(save); }
+      } else if (action.startsWith('jetpack_')) {
+        const idx = parseInt(action.slice(8));
+        if (save.unlockedJetpackStyles.includes(idx)) { save.jetpackStyle = idx; writeSave(save); }
+      } else if (action.startsWith('gadget_')) {
+        import('./sim/gadgets').then(({ GADGET_DEFS }) => {
+          const gadgetId = action.slice(7);
+          const level = (save.gadgetLevels as Record<string, number>)[gadgetId] ?? 0;
+          const def = GADGET_DEFS.find(d => d.id === gadgetId);
+          if (def && level < def.maxLevel) {
+            const cost = def.baseCost * (level + 1);
+            if (spendCoins(save, cost)) {
+              (save.gadgetLevels as Record<string, number>)[gadgetId] = level + 1;
+              writeSave(save);
+              audio.play('ui_confirm');
+            }
+          }
+        });
+      }
+  }
+}
+
+void handleUIAction; // suppress unused warning
+
+// ── Click / tap handler ────────────────────────────────────────────────────
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const lx = (e.clientX - rect.left) * (CFG.WORLD_W / rect.width);
+  const ly = (e.clientY - rect.top) * (CFG.WORLD_H / rect.height);
+  const action = hitButton(uiButtons, lx, ly);
+  if (action) {
+    handleUIActionSync(action);
+  }
+});
+
+// ── Spin Machine ───────────────────────────────────────────────────────────
+
+function startSpin(): void {
+  if (!simState || simState.tokensThisRun <= 0) return;
+  simState.tokensThisRun--;
+  spinProgress = 0;
+  spinActive = true;
+  spinDone = false;
+  const hasLucky = save.gadgetSlots.some(s => s.id === 'lucky_charm');
+  spinPrize = pickSpinPrize(hasLucky);
+  scene = 'spin';
+}
+
+function applySpinPrize(): void {
+  switch (spinPrize) {
+    case 'coins_small': save.coins += 100; writeSave(save); break;
+    case 'coins_big': save.coins += 500; writeSave(save); break;
+    case 'revive': reviveUsed = false; break;
+    case 'gadget_voucher': save.coins += 200; writeSave(save); break; // Convert to coins for now
+    case 'vehicle_voucher': save.coins += 150; writeSave(save); break;
+    case 'nothing': break;
+  }
+  spinDone = true;
+}
+
+// ── Sim tick ───────────────────────────────────────────────────────────────
+
+function tick(holding: boolean): void {
+  if (scene === 'run' && simState) {
+    prevHeroY = simState.hero.y;
+    tickWorld(simState, holding);
+
+    // Handle sim events
+    const events = simState._events;
+    for (const evt of events) {
+      switch (evt.type) {
+        case 'coin_collected': audio.play('coin'); break;
+        case 'spin_token_collected': audio.play('token_collect'); break;
+        case 'hero_died': audio.play('explosion'); break;
+        case 'vehicle_start': audio.play('vehicle_pickup'); break;
+        case 'shield_hit': audio.play('shield_hit'); break;
+        case 'mission_complete': audio.play('mission_complete'); break;
+        case 'zone_change': audio.setZone(evt.value ?? 0); break;
+      }
+    }
+    simState._events = [];
+
+    // Jetpack sound
+    audio.setJetpackThrust(holding ? simState.hero.thrustGain : 0);
+
+    // Speed sound
+    audio.setGameSpeed(simState.speed);
+
+    // Tutorial
+    if (tutorialAlpha > 0) {
+      tutorialTimer++;
+      if (simState.distance > 500) {
+        tutorialAlpha = Math.max(0, tutorialAlpha - 0.02);
+      }
+    }
+
+    // Trigger game over
+    if (simState.dead && simState.hero.deathTimer > 90 && !gameoverShown) {
+      goToGameOver();
+    }
+
+    // Camera events
+    tickCamera(camera, events);
+  }
+
+  if (scene === 'spin' && spinActive && !spinDone) {
+    spinProgress += 0.015;
+    if (spinProgress >= 1) {
+      spinActive = false;
+      applySpinPrize();
+    }
+  }
+
+  input.pollGamepad();
+  menuHeroAnim++;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+
+function render(interp: number, dt: number): void {
+  debug.recordFrame(dt);
+
+  ctx.clearRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
+
+  if (scene === 'run' || scene === 'paused') {
+    renderGameScene(interp);
+  } else if (scene === 'menu') {
+    renderMenuScene();
+  } else if (scene === 'gameover') {
+    renderGameOverScene();
+  } else if (scene === 'shop') {
+    renderShopScene();
+  } else if (scene === 'missions') {
+    renderMissionsScene();
+  } else if (scene === 'settings') {
+    renderSettingsScene();
+  } else if (scene === 'spin') {
+    renderSpinScene();
+  } else if (scene === 'boot') {
+    // Boot: show menu immediately
+    scene = 'menu';
+  }
+
+  input.endFrame();
+}
+
+function renderGameScene(interp: number): void {
+  if (!simState) return;
+
+  ctx.save();
+
+  // Camera shake
+  applyCamera(ctx, camera, save.screenShake);
+
+  // Background
+  drawBackground(ctx, simState.zoneIndex, Math.min(4, simState.zoneIndex + 1), simState.zoneFade, simState.distance);
+
+  // Floor / ceiling
+  drawFloorAndCeiling(ctx, simState.zoneIndex);
+
+  // Hazards
+  drawZappers(ctx, simState.zappers);
+  drawLasers(ctx, simState.lasers);
+  drawMissiles(ctx, simState.missiles);
+  drawPendulums(ctx, simState.pendulums);
+  drawVents(ctx, simState.vents);
+
+  // Vehicle crates
+  drawVehicleCrates(ctx, simState.vehicleCrates);
+
+  // Coins & tokens
+  drawCoins(ctx, simState.coins, simState.tick);
+  drawSpinTokens(ctx, simState.spinTokens);
+
+  // Particles (behind hero)
+  drawParticles(ctx, simState.particles.filter(p => p.kind !== 'pickup_glow'));
+
+  // Hero
+  drawHero(ctx, simState.hero, simState.vehicle, interp, prevHeroY, simState.tick);
+
+  // Foreground particles
+  drawParticles(ctx, simState.particles.filter(p => p.kind === 'pickup_glow'));
+
+  // Zone fade
+  drawZoneFade(ctx, simState.zoneFade);
+
+  // Vignette
+  drawVignette(ctx, simState.dead, simState.hero.invulnTicks);
+
+  ctx.restore();
+
+  // HUD (no shake)
+  if (!simState.dead) {
+    drawHUD(ctx, simState, save.bestDistance, scene === 'paused', simState.tick);
+  }
+
+  // Tutorial
+  drawTutorial(ctx, tutorialAlpha);
+
+  // Debug
+  debug.draw(ctx, simState, simState.tick);
+  debug.drawHitboxes(ctx, simState);
+
+  if (scene === 'paused') {
+    uiButtons = [];
+    drawPauseOverlay(ctx, simState.missions, simState.tick);
+  } else {
+    uiButtons = [];
+  }
+}
+
+function renderMenuScene(): void {
+  // Background
+  const W = CFG.WORLD_W, H = CFG.WORLD_H;
+  const theme = ZONE_THEMES[0]!;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, theme.skyTop);
+  grad.addColorStop(1, theme.skyBot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  drawFloorAndCeiling(ctx, 0);
+  drawVignette(ctx, false, 0);
+  uiButtons = drawMenuScene(ctx, simState?.tick ?? menuHeroAnim, menuHeroAnim, save);
+}
+
+function renderGameOverScene(): void {
+  if (!simState) { scene = 'menu'; return; }
+  const W = CFG.WORLD_W, H = CFG.WORLD_H;
+  // Show dim game background
+  const theme = ZONE_THEMES[simState.zoneIndex]!;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, theme.skyTop);
+  grad.addColorStop(1, theme.skyBot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  drawFloorAndCeiling(ctx, simState.zoneIndex);
+
+  const meters = Math.floor(simState.distance / CFG.UNITS_PER_METER);
+  const reviveCost = reviveUsed ? CFG.REVIVE_BASE_COST * CFG.REVIVE_COST_MULT : CFG.REVIVE_BASE_COST;
+  uiButtons = drawGameOverScene(
+    ctx,
+    meters, simState.coinsThisRun, simState.tokensThisRun,
+    save.bestDistance, isNewBest,
+    simState.missions, save,
+    reviveCost, reviveUsed, simState.tokensThisRun,
+    simState.seed
+  );
+}
+
+function renderShopScene(): void {
+  const W = CFG.WORLD_W, H = CFG.WORLD_H;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0d0d1a');
+  grad.addColorStop(1, '#1a1a2e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  uiButtons = drawShopScene(ctx, save, 0);
+}
+
+function renderMissionsScene(): void {
+  const W = CFG.WORLD_W, H = CFG.WORLD_H;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0d0d1a');
+  grad.addColorStop(1, '#1a1a2e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  const missions = (save.pendingMissions as unknown as import('./sim/types').Mission[]) ?? [];
+  uiButtons = drawMissionsScene(ctx, missions, save.rank, save.rankProgress);
+}
+
+function renderSettingsScene(): void {
+  uiButtons = drawSettingsScene(ctx, save);
+}
+
+function renderSpinScene(): void {
+  if (!simState) { scene = 'menu'; return; }
+  const W = CFG.WORLD_W, H = CFG.WORLD_H;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0d0d1a');
+  grad.addColorStop(1, '#1a1a2e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  uiButtons = drawSpinMachine(ctx, spinProgress, spinPrize, spinActive);
+  void H;
+}
+
+// ── Main loop start ────────────────────────────────────────────────────────
+
+const loop = new GameLoop(
+  (held) => tick(held),
+  (interp, dt) => render(interp, dt),
+  () => input.holding
+);
+
+// Hide loading screen
+const loading = document.getElementById('loading');
+if (loading) loading.style.display = 'none';
+
+// Check for debug/jump query param
+const params = new URLSearchParams(location.search);
+if (params.has('debug')) debug.toggle();
+if (params.has('zone')) {
+  startRun();
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  simState!.distance = parseInt(params.get('zone') ?? '0') * CFG.ZONE_DIST * CFG.UNITS_PER_METER;
+}
+
+loop.start();
