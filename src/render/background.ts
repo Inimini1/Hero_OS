@@ -11,7 +11,7 @@ export interface ZoneTheme {
 }
 
 export const ZONE_THEMES: ZoneTheme[] = [
-  { name: 'Research Lab',   skyTop: '#1a1a2e', skyBot: '#16213e', floorColor: '#2a2a4a', accentColor: '#4477ff', tint: 'rgba(0,0,80,0.1)' },
+  { name: 'Research Lab',   skyTop: '#c8daf0', skyBot: '#ddeaf8', floorColor: '#bcd0e4', accentColor: '#0088ff', tint: 'rgba(0,80,180,0.06)' },
   { name: 'Cavern',         skyTop: '#0d0a06', skyBot: '#1a1200', floorColor: '#2a1800', accentColor: '#ff8800', tint: 'rgba(80,40,0,0.1)' },
   { name: 'Sky Deck',       skyTop: '#1a6090', skyBot: '#3aa0d0', floorColor: '#44aacc', accentColor: '#ffffff', tint: 'rgba(0,120,180,0.08)' },
   { name: 'Neon Factory',   skyTop: '#0d0012', skyBot: '#1a0024', floorColor: '#2a0040', accentColor: '#ff00ff', tint: 'rgba(80,0,120,0.1)' },
@@ -23,86 +23,175 @@ const _bgLayers: Map<number, HTMLCanvasElement[]> = new Map();
 
 function makeLabLayer(W: number, H: number, depth: number): HTMLCanvasElement {
   const [c, ctx] = makeOffscreen(W, H);
-  const theme = ZONE_THEMES[0]!;
 
-  // Sky gradient
+  // Bright white/light-blue lab walls — the Jetpack Joyride "clean lab" look
   const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, theme.skyTop);
-  grad.addColorStop(1, theme.skyBot);
+  grad.addColorStop(0, '#b8ccdf');
+  grad.addColorStop(0.4, '#d8eaf8');
+  grad.addColorStop(0.85, '#ccdff0');
+  grad.addColorStop(1, '#b0c8de');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
   if (depth === 0) {
-    // Far: grid of monitor screens along the back wall
-    for (let x = 40; x < W; x += 200) {
-      const screenY = 80 + Math.sin(x * 0.03) * 40;
-      // Monitor body
-      ctx.fillStyle = '#1e2244';
-      ctx.fillRect(x, screenY, 120, 80);
-      ctx.strokeStyle = '#334488';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, screenY, 120, 80);
-      // Screen glow (varies per position)
-      const hue = (x * 7) % 60;
-      ctx.fillStyle = `hsla(${200 + hue},80%,40%,0.5)`;
-      ctx.fillRect(x + 6, screenY + 6, 108, 68);
-      // Scanline shimmer
-      ctx.strokeStyle = `hsla(${200 + hue},100%,70%,0.3)`;
-      ctx.lineWidth = 1;
-      for (let ly = screenY + 10; ly < screenY + 76; ly += 8) {
-        ctx.beginPath(); ctx.moveTo(x + 6, ly); ctx.lineTo(x + 114, ly); ctx.stroke();
-      }
-      // Status indicator dot
-      ctx.fillStyle = '#00ff88';
-      ctx.beginPath(); ctx.arc(x + 108, screenY + 8, 3, 0, Math.PI * 2); ctx.fill();
-    }
-    // Warning stripe along floor level
-    ctx.fillStyle = 'rgba(255,200,0,0.1)';
-    ctx.fillRect(0, CFG.FLOOR_Y - 10, W, 10);
+    // Far: clean white wall panels with grid lines, monitors, running scientists
 
-  } else if (depth === 1) {
-    // Mid: vertical pipes and horizontal conduits
-    ctx.strokeStyle = 'rgba(60,80,160,0.55)';
-    ctx.lineWidth = 14;
-    for (let x = 80; x < W; x += 220) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CFG.FLOOR_Y - 20); ctx.stroke();
-      // Pipe joint ring
-      ctx.lineWidth = 20;
-      ctx.beginPath(); ctx.moveTo(x, CFG.FLOOR_Y * 0.35); ctx.lineTo(x, CFG.FLOOR_Y * 0.35 + 2); ctx.stroke();
-      ctx.lineWidth = 14;
-    }
-    // Horizontal duct
-    ctx.lineWidth = 10;
-    ctx.strokeStyle = 'rgba(60,80,140,0.4)';
-    for (let y = 140; y < CFG.FLOOR_Y - 60; y += 110) {
+    // Wall panel grid (subtle light blue lines on white)
+    ctx.strokeStyle = 'rgba(80,120,180,0.18)';
+    ctx.lineWidth = 1;
+    for (let y = CFG.CEILING_Y + 30; y < CFG.FLOOR_Y - 20; y += 72) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
-    // Accent glow strip
-    ctx.strokeStyle = 'rgba(68,120,255,0.25)';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(0, CFG.CEILING_Y + 40); ctx.lineTo(W, CFG.CEILING_Y + 40); ctx.stroke();
+    for (let x = 0; x < W; x += 120) {
+      ctx.beginPath(); ctx.moveTo(x, CFG.CEILING_Y + 30); ctx.lineTo(x, CFG.FLOOR_Y - 20); ctx.stroke();
+    }
+
+    // Overhead fluorescent light strips with downward glow
+    for (let x = 40; x < W; x += 200) {
+      // Metal housing
+      ctx.fillStyle = '#8899aa';
+      ctx.fillRect(x, CFG.CEILING_Y + 2, 120, 8);
+      // Bright tube
+      ctx.fillStyle = 'rgba(240,248,255,0.95)';
+      ctx.fillRect(x + 4, CFG.CEILING_Y + 3, 112, 4);
+      // Glow cone downward
+      const lgrd = ctx.createLinearGradient(0, CFG.CEILING_Y + 10, 0, CFG.CEILING_Y + 90);
+      lgrd.addColorStop(0, 'rgba(200,230,255,0.28)');
+      lgrd.addColorStop(1, 'rgba(200,230,255,0)');
+      ctx.fillStyle = lgrd;
+      ctx.fillRect(x - 20, CFG.CEILING_Y + 10, 160, 80);
+    }
+
+    // Monitor banks — dark screens on the bright wall
+    for (let x = 60; x < W; x += 260) {
+      const screenY = 110 + Math.sin(x * 0.025) * 28;
+      // White monitor bezel
+      ctx.fillStyle = '#d0dce8';
+      ctx.fillRect(x, screenY, 130, 82);
+      ctx.strokeStyle = '#8899aa';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, screenY, 130, 82);
+      // Dark screen with blue-green data
+      const hue = 185 + (x * 13) % 50;
+      ctx.fillStyle = '#0a1428';
+      ctx.fillRect(x + 6, screenY + 6, 118, 66);
+      // Green data lines on screen
+      ctx.strokeStyle = `hsla(${hue},95%,55%,0.65)`;
+      ctx.lineWidth = 1.5;
+      for (let ly = screenY + 16; ly < screenY + 68; ly += 10) {
+        const lineLen = 50 + Math.sin(ly * 0.4 + x * 0.02) * 46;
+        ctx.beginPath(); ctx.moveTo(x + 10, ly); ctx.lineTo(x + 10 + lineLen, ly); ctx.stroke();
+      }
+      // Green status LED
+      ctx.fillStyle = '#00ff88';
+      ctx.beginPath(); ctx.arc(x + 120, screenY + 9, 3.5, 0, Math.PI * 2); ctx.fill();
+      // Monitor stand
+      ctx.fillStyle = '#99aabb';
+      ctx.fillRect(x + 50, screenY + 82, 30, 6);
+      ctx.fillRect(x + 38, screenY + 86, 54, 4);
+    }
+
+    // Scientists fleeing in background (JJR signature detail)
+    for (let x = 100; x < W; x += 380) {
+      _drawScientist(ctx, x, CFG.FLOOR_Y - 2, (x / 380) % 2 === 0);
+    }
+
+    // Yellow/black hazard stripe along floor edge
+    const stripeW = 24;
+    for (let x = 0; x < W; x += stripeW * 2) {
+      ctx.fillStyle = 'rgba(240,190,0,0.35)';
+      ctx.fillRect(x, CFG.FLOOR_Y - 10, stripeW, 10);
+    }
+
+  } else if (depth === 1) {
+    // Mid: white pipes and ventilation ducts
+    ctx.strokeStyle = 'rgba(100,130,180,0.42)';
+    ctx.lineWidth = 16;
+    ctx.lineCap = 'butt';
+    for (let x = 80; x < W; x += 240) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CFG.FLOOR_Y - 20); ctx.stroke();
+      // Pipe collar
+      ctx.lineWidth = 24;
+      ctx.beginPath(); ctx.moveTo(x, CFG.FLOOR_Y * 0.32); ctx.lineTo(x, CFG.FLOOR_Y * 0.32 + 2); ctx.stroke();
+      ctx.lineWidth = 16;
+    }
+    // Horizontal ventilation ducts
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = 'rgba(110,140,180,0.3)';
+    for (let y = 130; y < CFG.FLOOR_Y - 60; y += 120) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    // Blue neon accent strip along ceiling
+    const aGrd = ctx.createLinearGradient(0, CFG.CEILING_Y + 18, 0, CFG.CEILING_Y + 60);
+    aGrd.addColorStop(0, 'rgba(0,136,255,0.4)');
+    aGrd.addColorStop(1, 'rgba(0,136,255,0)');
+    ctx.fillStyle = aGrd;
+    ctx.fillRect(0, CFG.CEILING_Y + 18, W, 42);
+    ctx.strokeStyle = 'rgba(0,136,255,0.6)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, CFG.CEILING_Y + 18); ctx.lineTo(W, CFG.CEILING_Y + 18); ctx.stroke();
 
   } else {
-    // Near: machinery silhouettes with blinking status lights
-    ctx.fillStyle = 'rgba(10,10,30,0.88)';
+    // Near: control console silhouettes and ceiling light pools
+    ctx.fillStyle = 'rgba(40,60,100,0.75)';
     for (let x = 0; x < W; x += 280) {
-      // Control console
-      ctx.fillRect(x, CFG.FLOOR_Y - 70, 80, 70);
-      ctx.fillRect(x + 100, CFG.FLOOR_Y - 100, 50, 100);
-      ctx.fillRect(x + 180, CFG.FLOOR_Y - 55, 60, 55);
-      // Blinking lights (pre-rendered as a range of alpha states)
+      ctx.fillRect(x, CFG.FLOOR_Y - 72, 80, 72);
+      ctx.fillRect(x + 100, CFG.FLOOR_Y - 100, 52, 100);
+      ctx.fillRect(x + 175, CFG.FLOOR_Y - 56, 64, 56);
+      // Mini screen on console
+      ctx.fillStyle = 'rgba(0,200,120,0.5)';
+      ctx.fillRect(x + 10, CFG.FLOOR_Y - 62, 26, 18);
+      ctx.fillStyle = 'rgba(40,60,100,0.75)';
+      // Status lights
       const lights = [
-        { lx: x + 10, ly: CFG.FLOOR_Y - 62, col: '#00ff88' },
-        { lx: x + 30, ly: CFG.FLOOR_Y - 62, col: '#ff4444' },
+        { lx: x + 46, ly: CFG.FLOOR_Y - 64, col: '#00ff88' },
+        { lx: x + 56, ly: CFG.FLOOR_Y - 64, col: '#ff4444' },
         { lx: x + 108, ly: CFG.FLOOR_Y - 92, col: '#ffcc00' },
+        { lx: x + 120, ly: CFG.FLOOR_Y - 92, col: '#44aaff' },
       ];
       for (const l of lights) {
-        ctx.fillStyle = l.col + 'aa';
-        ctx.beginPath(); ctx.arc(l.lx, l.ly, 3, 0, Math.PI * 2); ctx.fill();
+        const glrd = ctx.createRadialGradient(l.lx, l.ly, 0, l.lx, l.ly, 7);
+        glrd.addColorStop(0, l.col + '99');
+        glrd.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glrd;
+        ctx.fillRect(l.lx - 7, l.ly - 7, 14, 14);
+        ctx.fillStyle = l.col;
+        ctx.beginPath(); ctx.arc(l.lx, l.ly, 2.5, 0, Math.PI * 2); ctx.fill();
       }
+    }
+    // Ceiling fluorescent light pools
+    for (let x = 20; x < W; x += 160) {
+      ctx.fillStyle = 'rgba(230,245,255,0.65)';
+      ctx.fillRect(x, CFG.CEILING_Y - 4, 80, 6);
+      const lgrd = ctx.createLinearGradient(0, CFG.CEILING_Y + 2, 0, CFG.CEILING_Y + 70);
+      lgrd.addColorStop(0, 'rgba(200,230,255,0.18)');
+      lgrd.addColorStop(1, 'rgba(200,230,255,0)');
+      ctx.fillStyle = lgrd;
+      ctx.fillRect(x - 10, CFG.CEILING_Y + 2, 100, 68);
     }
   }
   return c;
+}
+
+function _drawScientist(ctx: CanvasRenderingContext2D, x: number, y: number, flipped: boolean): void {
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  if (flipped) { ctx.scale(-1, 1); x = -x; }
+  // Lab coat
+  ctx.fillStyle = '#e8ecf0';
+  ctx.fillRect(x - 7, y - 38, 14, 22);
+  // Head
+  ctx.fillStyle = '#f0c090';
+  ctx.beginPath(); ctx.arc(x, y - 46, 8, 0, Math.PI * 2); ctx.fill();
+  // Arms (running pose — one back, one forward)
+  ctx.strokeStyle = '#d8dce4';
+  ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 5, y - 32); ctx.lineTo(x - 15, y - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 5, y - 32); ctx.lineTo(x + 12, y - 44); ctx.stroke();
+  // Legs (running)
+  ctx.beginPath(); ctx.moveTo(x - 2, y - 18); ctx.lineTo(x - 11, y - 1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 2, y - 18); ctx.lineTo(x + 9, y); ctx.stroke();
+  ctx.restore();
 }
 
 function makeCavernLayer(W: number, H: number, depth: number): HTMLCanvasElement {

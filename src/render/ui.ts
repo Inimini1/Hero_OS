@@ -69,63 +69,91 @@ export function drawMenuScene(
 ): Button[] {
   const W = CFG.WORLD_W, H = CFG.WORLD_H;
 
-  // Title
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  roundRect(ctx, W / 2 - 280, 60, 560, 110);
-  ctx.fill();
+  // ── Title banner ────────────────────────────────────────────────────────
+  // Gradient title panel
+  const titleGrd = ctx.createLinearGradient(0, 30, 0, 170);
+  titleGrd.addColorStop(0, 'rgba(0,0,0,0.75)');
+  titleGrd.addColorStop(1, 'rgba(0,0,0,0.0)');
+  ctx.fillStyle = titleGrd;
+  ctx.fillRect(0, 30, W, 140);
 
-  ctx.font = 'bold 72px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // Glow
-  ctx.shadowColor = '#4477ff';
+  // Orange-gold glow title (JJR-style warm palette)
+  ctx.shadowColor = '#ff8800';
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = '#ff9922';
+  ctx.font = 'bold 78px monospace';
+  ctx.fillText('ROCKET', W / 2, 92);
+  ctx.shadowColor = '#ffcc00';
   ctx.shadowBlur = 20;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('ROCKET', W / 2, 95);
-  ctx.fillStyle = '#ff8800';
-  ctx.fillText('RASCAL', W / 2, 155);
+  ctx.fillStyle = '#ffe040';
+  ctx.fillText('RASCAL', W / 2, 158);
   ctx.shadowBlur = 0;
 
-  // Hero walking animation (uses real drawHero with player's outfit/jetpack)
-  drawMenuHero(ctx, 180 + Math.sin(heroAnim * 0.05) * 3, H - 90, heroAnim, save.outfit, save.jetpackStyle);
+  // ── Hero animated display (right side) ──────────────────────────────
+  drawMenuHero(ctx, W - 200 + Math.sin(heroAnim * 0.04) * 4, H - 85, heroAnim, save.outfit, save.jetpackStyle);
 
-  // Best distance
+  // ── Stats strip ──────────────────────────────────────────────────────
+  // Coins counter (top right corner)
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  roundRect(ctx, W - 180, 10, 168, 36, 8);
+  ctx.fill();
+  // Coin icon
+  const ci = ctx.createRadialGradient(W - 160, 28, 2, W - 160, 28, 10);
+  ci.addColorStop(0, '#ffe040'); ci.addColorStop(1, 'rgba(255,180,0,0)');
+  ctx.fillStyle = ci;
+  ctx.beginPath(); ctx.arc(W - 160, 28, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffe040';
+  ctx.beginPath(); ctx.arc(W - 160, 28, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#885500';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('$', W - 160, 28.5);
+  ctx.fillStyle = '#ffe040';
+  ctx.font = 'bold 17px monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${save.coins}`, W - 148, 28);
+
+  // Best distance badge
   if (save.bestDistance > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    roundRect(ctx, W / 2 - 200, 185, 400, 36);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    roundRect(ctx, W - 180, 52, 168, 30, 8);
     ctx.fill();
-    ctx.fillStyle = '#ffdd00';
-    ctx.font = '18px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`Best: ${Math.floor(save.bestDistance)}m`, W / 2, 203);
+    ctx.fillStyle = '#f5c800';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`★ BEST ${Math.floor(save.bestDistance)}m`, W - 96, 67);
   }
 
-  // Coins display
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  roundRect(ctx, W / 2 + 50, 185, 160, 36);
-  ctx.fill();
-  ctx.fillStyle = '#ffdd00';
-  ctx.font = '18px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(`💰 ${save.coins}`, W / 2 + 130, 203);
-
-  // Buttons
+  // ── Buttons ──────────────────────────────────────────────────────────
+  // Large centered PLAY button (JJR GO! button equivalent)
   const buttons: Button[] = [
-    { x: W/2 - 140, y: H/2 - 60, w: 280, h: 56, label: 'PLAY', color: '#2244cc', action: 'play' },
-    { x: W/2 - 140, y: H/2 + 10, w: 136, h: 44, label: 'SHOP', color: '#334422', action: 'shop' },
-    { x: W/2 + 4, y: H/2 + 10, w: 136, h: 44, label: 'MISSIONS', color: '#334422', action: 'missions' },
-    { x: W/2 - 140, y: H/2 + 68, w: 136, h: 44, label: 'SETTINGS', color: '#223344', action: 'settings' },
-    { x: W/2 + 4, y: H/2 + 68, w: 136, h: 44, label: 'DAILY', color: '#443322', action: 'daily' },
+    {
+      x: W/2 - 150, y: H/2 - 50, w: 300, h: 64,
+      label: '▶  PLAY',
+      color: '#cc5500',
+      textColor: '#ffffff',
+      action: 'play',
+    },
+    { x: W/2 - 150, y: H/2 + 28, w: 144, h: 46, label: 'SHOP',     color: '#1a3344', action: 'shop' },
+    { x: W/2 + 6,   y: H/2 + 28, w: 144, h: 46, label: 'MISSIONS', color: '#1a3344', action: 'missions' },
+    { x: W/2 - 150, y: H/2 + 86, w: 144, h: 40, label: 'SETTINGS', color: '#1a2233', action: 'settings' },
+    { x: W/2 + 6,   y: H/2 + 86, w: 144, h: 40, label: 'DAILY',    color: '#332211', action: 'daily' },
   ];
   drawButtons(ctx, buttons);
 
-  // Rank
-  ctx.fillStyle = '#8888aa';
-  ctx.font = '14px monospace';
+  // ── Bottom rank bar ──────────────────────────────────────────────────
+  const rankGrd = ctx.createLinearGradient(0, H - 32, 0, H);
+  rankGrd.addColorStop(0, 'rgba(0,0,0,0.0)');
+  rankGrd.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = rankGrd;
+  ctx.fillRect(0, H - 32, W, 32);
+  ctx.fillStyle = '#8899bb';
+  ctx.font = '13px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(`Rank ${save.rank} · ${save.totalRuns} runs`, W / 2, H - 10);
+  ctx.fillText(`Rank ${save.rank}  ·  ${save.totalRuns} runs`, W / 2, H - 6);
 
   void tick;
   return buttons;
@@ -140,7 +168,7 @@ function drawMenuHero(
 ): void {
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(1.5, 1.5);
+  ctx.scale(2.0, 2.0);
 
   const hero: Hero = {
     x: 0, y: 0,
@@ -180,81 +208,127 @@ export function drawGameOverScene(
 ): Button[] {
   const W = CFG.WORLD_W, H = CFG.WORLD_H;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillStyle = 'rgba(0,0,0,0.80)';
   ctx.fillRect(0, 0, W, H);
 
-  // Panel
-  ctx.fillStyle = 'rgba(10,10,30,0.95)';
-  roundRect(ctx, W/2 - 320, 30, 640, H - 60);
+  // Panel — split layout: left stats, right missions
+  ctx.fillStyle = 'rgba(10,14,28,0.97)';
+  roundRect(ctx, W/2 - 330, 24, 660, H - 48);
   ctx.fill();
-  ctx.strokeStyle = '#334466';
+  ctx.strokeStyle = '#2a3a5a';
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Header
-  ctx.fillStyle = isNewBest ? '#ffdd00' : '#cc4444';
-  ctx.font = 'bold 42px monospace';
+  // ── Header ────────────────────────────────────────────────────────────
+  const hdrColor = isNewBest ? '#f5c800' : '#ff4444';
+  ctx.shadowColor = hdrColor;
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = hdrColor;
+  ctx.font = 'bold 48px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(isNewBest ? '★ NEW BEST! ★' : 'WIPEOUT!', W/2, 36);
+  ctx.shadowBlur = 0;
+
+  // ── Distance highlight ───────────────────────────────────────────────
+  const distGrd = ctx.createLinearGradient(W/2 - 200, 94, W/2 + 200, 94);
+  distGrd.addColorStop(0, 'rgba(85,153,255,0)');
+  distGrd.addColorStop(0.5, 'rgba(85,153,255,0.18)');
+  distGrd.addColorStop(1, 'rgba(85,153,255,0)');
+  ctx.fillStyle = distGrd;
+  ctx.fillRect(W/2 - 200, 94, 400, 46);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 38px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(isNewBest ? 'NEW BEST!' : 'WIPED OUT', W/2, 80);
+  ctx.fillText(`${distanceMeters}m`, W/2, 117);
 
-  // Stats
-  const startY = 125;
-  drawStatRow(ctx, 'Distance', `${distanceMeters}m`, W/2, startY);
-  if (isNewBest) {
-    ctx.fillStyle = '#ffdd00';
-    ctx.font = '14px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText('★ NEW BEST', W/2 + 230, startY);
-  }
-  drawStatRow(ctx, 'Coins', `+${coinsEarned}`, W/2, startY + 36);
+  ctx.fillStyle = '#6677aa';
+  ctx.font = '13px monospace';
+  ctx.fillText('DISTANCE', W/2, 140);
+
+  // ── Stats rows ────────────────────────────────────────────────────────
+  const col1X = W/2 - 310;  // left panel
+  let sy = 160;
+
+  drawStatRow(ctx, 'Coins earned',  `+${coinsEarned}`,           W/2, sy);       sy += 32;
   if (tokensEarned > 0) {
-    drawStatRow(ctx, 'Spin Tokens', `+${tokensEarned}`, W/2, startY + 72);
+    drawStatRow(ctx, 'Spin tokens', `+${tokensEarned}★`,         W/2, sy);       sy += 32;
   }
-  drawStatRow(ctx, 'Best', `${Math.floor(bestDistance)}m`, W/2, startY + 108);
+  drawStatRow(ctx, 'All-time best', `${Math.floor(bestDistance)}m`, W/2, sy);    sy += 32;
 
-  // Seed
-  ctx.fillStyle = '#445566';
-  ctx.font = '12px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(`Seed: ${seed}`, W/2, startY + 144);
+  void col1X;
+  void seed;
 
-  // Missions
-  const missionY = startY + 170;
-  ctx.fillStyle = '#8888aa';
-  ctx.font = 'bold 15px monospace';
+  // ── Divider ───────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#2a3a5a';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W/2 - 310, sy + 8); ctx.lineTo(W/2 + 310, sy + 8); ctx.stroke();
+  sy += 20;
+
+  // ── Missions ──────────────────────────────────────────────────────────
+  ctx.fillStyle = '#5566aa';
+  ctx.font = 'bold 13px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('MISSIONS', W/2, missionY);
+  ctx.textBaseline = 'top';
+  ctx.fillText('MISSIONS', W/2, sy);
+  sy += 20;
 
   for (let i = 0; i < missions.length; i++) {
     const m = missions[i];
     if (!m) continue;
-    const my = missionY + 25 + i * 44;
     const progress = Math.min(1, m.progress / m.target);
     const desc = getMissionDescription(m);
 
-    ctx.fillStyle = m.completed ? 'rgba(0,255,100,0.15)' : 'rgba(255,255,255,0.05)';
-    roundRect(ctx, W/2 - 290, my - 15, 580, 36);
+    ctx.fillStyle = m.completed ? 'rgba(0,255,100,0.14)' : 'rgba(255,255,255,0.05)';
+    roundRect(ctx, W/2 - 300, sy, 600, 38);
     ctx.fill();
 
-    ctx.fillStyle = m.completed ? '#00ff88' : '#ccccee';
-    ctx.font = '12px monospace';
+    ctx.fillStyle = m.completed ? '#44ff99' : '#aabbdd';
+    ctx.font = m.completed ? 'bold 12px monospace' : '12px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(desc.length > 50 ? desc.slice(0, 50) + '…' : desc, W/2 - 280, my - 2);
+    ctx.textBaseline = 'middle';
+    const shortDesc = desc.length > 52 ? desc.slice(0, 52) + '…' : desc;
+    ctx.fillText(shortDesc, W/2 - 290, sy + 14);
 
-    ctx.fillStyle = '#222244';
-    ctx.fillRect(W/2 - 280, my + 10, 560, 6);
-    ctx.fillStyle = m.completed ? '#00ff88' : '#4488ff';
-    ctx.fillRect(W/2 - 280, my + 10, 560 * progress, 6);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(W/2 - 290, sy + 26, 580, 6);
+    ctx.fillStyle = m.completed ? '#44ff99' : '#5599ff';
+    ctx.fillRect(W/2 - 290, sy + 26, 580 * progress, 6);
+
+    ctx.fillStyle = m.completed ? '#44ff99' : '#6677aa';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.floor(m.progress)}/${m.target}`, W/2 + 294, sy + 14);
+
+    sy += 44;
   }
 
-  // Buttons
-  const btnY = H - 160;
+  // ── Buttons ───────────────────────────────────────────────────────────
+  const btnY = H - 68;
   const buttons: Button[] = [
-    { x: W/2 - 310, y: btnY, w: 150, h: 50, label: 'RETRY', color: '#1a3a8a', action: 'retry' },
-    { x: W/2 - 150, y: btnY, w: 150, h: 50, label: reviveCost === 0 ? 'REVIVE FREE' : `REVIVE ${reviveCost}`, color: reviveUsed ? '#553322' : '#884400', action: 'revive', enabled: !reviveUsed && (reviveCost === 0 || save.coins >= reviveCost) },
-    { x: W/2 + 10, y: btnY, w: 150, h: 50, label: `SPIN (${spinTokens})★`, color: spinTokens > 0 ? '#5500aa' : '#333355', action: 'spin', enabled: spinTokens > 0 },
-    { x: W/2 + 170, y: btnY, w: 140, h: 50, label: 'MENU', color: '#222233', action: 'menu' },
+    {
+      x: W/2 - 320, y: btnY, w: 140, h: 46,
+      label: 'RETRY', color: '#cc4400', textColor: '#ffffff', action: 'retry',
+    },
+    {
+      x: W/2 - 168, y: btnY, w: 160, h: 46,
+      label: reviveCost === 0 ? 'FREE REVIVE' : `REVIVE ${reviveCost}`,
+      color: reviveUsed ? '#3a2510' : '#884400', action: 'revive',
+      enabled: !reviveUsed && (reviveCost === 0 || save.coins >= reviveCost),
+    },
+    {
+      x: W/2 + 2, y: btnY, w: 160, h: 46,
+      label: spinTokens > 0 ? `SPIN ★${spinTokens}` : 'SPIN (0)',
+      color: spinTokens > 0 ? '#660099' : '#222244', action: 'spin',
+      enabled: spinTokens > 0,
+    },
+    {
+      x: W/2 + 172, y: btnY, w: 148, h: 46,
+      label: 'MENU', color: '#1a2235', action: 'menu',
+    },
   ];
   drawButtons(ctx, buttons);
 
@@ -882,60 +956,123 @@ export function drawSpinMachine(
 ): Button[] {
   const W = CFG.WORLD_W, H = CFG.WORLD_H;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillStyle = 'rgba(0,0,0,0.88)';
   ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 36px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('SPIN MACHINE', W/2, 80);
+  // Machine cabinet
+  ctx.fillStyle = 'rgba(12,16,32,0.98)';
+  roundRect(ctx, W/2 - 290, 40, 580, H - 80);
+  ctx.fill();
+  ctx.strokeStyle = '#3a3a6a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
-  // Reels
-  const reelW = 140, reelH = 90, reelGap = 20;
+  // Header — "SPIN MACHINE" with orange glow (JJR slot style)
+  ctx.shadowColor = '#ff8800';
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = '#ff9922';
+  ctx.font = 'bold 40px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('SPIN MACHINE', W/2, 56);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#5566aa';
+  ctx.font = '14px monospace';
+  ctx.fillText('Pull the lever — what\'s your prize?', W/2, 102);
+
+  // Reel window frame
+  const reelW = 148, reelH = 110, reelGap = 16;
   const totalW = 3 * reelW + 2 * reelGap;
   const startRX = W/2 - totalW/2;
-  const ry = H/2 - 60;
+  const ry = 136;
+
+  // Outer chrome frame
+  ctx.fillStyle = '#2a2a4a';
+  roundRect(ctx, startRX - 14, ry - 10, totalW + 28, reelH + 20, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#5566aa';
+  ctx.lineWidth = 3;
+  ctx.stroke();
 
   for (let r = 0; r < 3; r++) {
     const rx = startRX + r * (reelW + reelGap);
-    ctx.fillStyle = '#1a1a2e';
+
+    // Reel background
+    ctx.fillStyle = '#0a0c1a';
     roundRect(ctx, rx, ry, reelW, reelH, 8);
     ctx.fill();
-    ctx.strokeStyle = '#4477ff';
+
+    // Reel border glow
+    ctx.strokeStyle = spinning ? '#ff8800' : '#5599ff';
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // Symbol
+    let idx: number;
     if (spinning) {
-      const offset = (spinProgress * 10 + r * 2) % 1;
-      const idx = Math.floor(offset * SPIN_REEL.length) % SPIN_REEL.length;
-      ctx.fillStyle = SPIN_COLORS[idx] ?? '#ffffff';
-      ctx.font = 'bold 26px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(SPIN_REEL[idx] ?? '?', rx + reelW / 2, ry + reelH / 2);
+      const offset = (spinProgress * 12 + r * 2.5) % 1;
+      idx = Math.floor(offset * SPIN_REEL.length) % SPIN_REEL.length;
     } else {
-      const prizeIdx = SPIN_PRIZES.indexOf(prize);
-      ctx.fillStyle = SPIN_COLORS[prizeIdx] ?? '#ffffff';
-      ctx.font = 'bold 26px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(SPIN_REEL[prizeIdx] ?? '?', rx + reelW / 2, ry + reelH / 2);
+      idx = SPIN_PRIZES.indexOf(prize);
     }
-  }
-
-  // Result
-  if (!spinning) {
-    ctx.fillStyle = prize === 'nothing' ? '#884444' : '#44aa44';
-    ctx.font = 'bold 28px monospace';
+    // Symbol glow when done
+    if (!spinning) {
+      const symGrd = ctx.createRadialGradient(rx + reelW/2, ry + reelH/2, 0, rx + reelW/2, ry + reelH/2, 55);
+      const sc = SPIN_COLORS[idx] ?? '#ffffff';
+      symGrd.addColorStop(0, sc + '33');
+      symGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = symGrd;
+      ctx.fillRect(rx - 10, ry - 10, reelW + 20, reelH + 20);
+    }
+    ctx.fillStyle = SPIN_COLORS[idx] ?? '#ffffff';
+    ctx.font = 'bold 42px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(SPIN_LABELS[prize], W/2, H/2 + 60);
+    ctx.fillText(SPIN_REEL[idx] ?? '?', rx + reelW / 2, ry + reelH / 2);
+  }
+
+  // Center line indicator
+  ctx.strokeStyle = 'rgba(255,200,0,0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(startRX - 18, ry + reelH/2);
+  ctx.lineTo(startRX + totalW + 18, ry + reelH/2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Result banner
+  if (!spinning) {
+    const isWin = prize !== 'nothing';
+    ctx.fillStyle = isWin ? 'rgba(0,180,80,0.2)' : 'rgba(180,0,0,0.2)';
+    roundRect(ctx, W/2 - 240, ry + reelH + 24, 480, 56, 8);
+    ctx.fill();
+
+    ctx.shadowColor = isWin ? '#44ff99' : '#ff4444';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = isWin ? '#44ff99' : '#ff5555';
+    ctx.font = 'bold 30px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(SPIN_LABELS[prize], W/2, ry + reelH + 52);
+    ctx.shadowBlur = 0;
+  } else {
+    // Spinning indicator
+    ctx.fillStyle = '#ff8800';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const dots = '.'.repeat(Math.floor(spinProgress * 6) % 4);
+    ctx.fillText(`Spinning${dots}`, W/2, ry + reelH + 52);
   }
 
   const buttons: Button[] = [];
   if (!spinning) {
-    buttons.push({ x: W/2 - 100, y: H - 100, w: 200, h: 50, label: 'CONTINUE', color: '#1a3a8a', action: 'continue' });
+    buttons.push({
+      x: W/2 - 120, y: H - 90, w: 240, h: 54,
+      label: 'CONTINUE', color: '#cc5500', textColor: '#ffffff', action: 'continue',
+    });
   }
   drawButtons(ctx, buttons);
   return buttons;

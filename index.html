@@ -23,14 +23,15 @@
       background: #0d0d1a;
       touch-action: none;
       user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       /* iOS safe area */
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
     #game-canvas {
       display: block;
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
+      flex-shrink: 0;
       image-rendering: pixelated;
     }
     #loading {

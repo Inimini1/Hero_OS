@@ -30,13 +30,14 @@ export function setupCanvas(canvas: HTMLCanvasElement): CanvasSetup {
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
 
+  // CSS already centers via top:50%/left:50%/translate(-50%,-50%)
+  // so we only compute offsets for input coordinate translation
   const offsetX = Math.round((winW - cssW) / 2);
   const offsetY = Math.round((winH - cssH) / 2);
-  canvas.style.left = offsetX + 'px';
-  canvas.style.top = offsetY + 'px';
 
   const ctx = canvas.getContext('2d')!;
-  ctx.scale(dpr * scale, dpr * scale);
+  // setTransform resets then applies in one step — safe to call on resize
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
 
   return { canvas, ctx, dpr, cssW, cssH, offsetX, offsetY, scaleX: scale, scaleY: scale };
 }

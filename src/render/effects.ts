@@ -82,9 +82,9 @@ export function drawHitStopFlash(ctx: CanvasRenderingContext2D, hitStop: number)
   ctx.fillRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
 }
 
-const FLOOR_COLORS = ['#2a2a4a', '#2a1800', '#44aacc', '#2a0040', '#111120'];
-const ACCENT_COLORS = ['#4477ff', '#ff8800', '#ffffff', '#ff00ff', '#00ffcc'];
-const CEIL_COLORS  = ['#1a1a3a', '#1a0e00', '#338ea8', '#1f0030', '#0a0a18'];
+const FLOOR_COLORS = ['#191c27', '#2a1800', '#44aacc', '#2a0040', '#111120'];
+const ACCENT_COLORS = ['#5599ff', '#ff8800', '#ffffff', '#ff00ff', '#00ffcc'];
+const CEIL_COLORS  = ['#111320', '#1a0e00', '#338ea8', '#1f0030', '#0a0a18'];
 
 /** Floor surface and ceiling with zone-specific tile patterns. */
 export function drawFloorAndCeiling(
@@ -148,15 +148,29 @@ function drawFloorTiles(
   ctx.globalAlpha = 0.35;
 
   switch (zone) {
-    case 0: { // Research Lab — metallic grid tiles
-      const tileW = 80, tileH = 24;
+    case 0: { // Research Lab — hazard stripes + metallic grid
+      // Yellow/black hazard stripes at floor edge (JJR-style)
+      const stripeW = 22;
+      const stripeOff = (-(scrollX * 0.85) % (stripeW * 2) + stripeW * 2) % (stripeW * 2);
+      ctx.save();
+      ctx.globalAlpha = 0.65;
+      for (let x = -stripeW * 2 + stripeOff; x < CFG.WORLD_W + stripeW * 2; x += stripeW * 2) {
+        ctx.fillStyle = '#f5c800';
+        ctx.fillRect(x, floorY, stripeW, 7);
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(x + stripeW, floorY, stripeW, 7);
+      }
+      ctx.restore();
+      ctx.globalAlpha = 0.35;
+      // Metallic grid tiles
+      const tileW = 80, tileH = 20;
       const offX = (-(scrollX * 0.9) % tileW + tileW) % tileW;
       ctx.strokeStyle = accent;
       ctx.lineWidth = 1;
       for (let x = -tileW + offX; x < CFG.WORLD_W + tileW; x += tileW) {
-        ctx.beginPath(); ctx.moveTo(x, floorY); ctx.lineTo(x, floorY + tileH); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, floorY + 8); ctx.lineTo(x, floorY + 8 + tileH); ctx.stroke();
       }
-      ctx.beginPath(); ctx.moveTo(0, floorY + tileH); ctx.lineTo(CFG.WORLD_W, floorY + tileH); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, floorY + 8 + tileH); ctx.lineTo(CFG.WORLD_W, floorY + 8 + tileH); ctx.stroke();
       break;
     }
     case 1: { // Cavern — cracked rock lines

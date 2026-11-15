@@ -14,178 +14,192 @@ export function drawHUD(
   _tick: number
 ): void {
   const W = CFG.WORLD_W;
-
-  // ── Distance + zone progress ──────────────────────────────────────────
   const meters = Math.floor(state.distance / CFG.UNITS_PER_METER);
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  roundRect(ctx, W - 180, 12, 168, 44);
+
+  // ── Distance counter (TOP RIGHT — JJR style) ──────────────────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  roundRect(ctx, W - 188, 10, 176, 50, 8);
   ctx.fill();
+
+  // Distance value — large bold white
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 20px monospace';
+  ctx.font = 'bold 26px monospace';
   ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${NUM_FMT.format(meters)} m`, W - 20, 29);
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${NUM_FMT.format(meters)}m`, W - 16, 16);
 
-  // Best indicator
+  // "BEST" badge if beating record
   if (meters > 0 && meters >= bestDistance && bestDistance > 0) {
-    ctx.fillStyle = '#ffdd00';
-    ctx.font = 'bold 10px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText('★ BEST', W - 20, 44);
-  }
-
-  // Zone progress bar (bottom 4px of panel)
-  const zoneColors = ['#4477ff', '#ff7700', '#44ccff', '#ff44cc', '#8844ff'];
-  const zoneColor = zoneColors[state.zoneIndex % zoneColors.length] ?? '#4477ff';
-  const withinZone = meters % CFG.ZONE_DIST;
-  const zoneProgress = withinZone / CFG.ZONE_DIST;
-  ctx.fillStyle = 'rgba(255,255,255,0.1)';
-  ctx.fillRect(W - 178, 50, 164, 4);
-  ctx.fillStyle = zoneColor;
-  ctx.fillRect(W - 178, 50, 164 * zoneProgress, 4);
-
-  // ── Coins ─────────────────────────────────────────────────────────────
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  roundRect(ctx, W - 180, 62, 168, 30);
-  ctx.fill();
-  drawCoinIcon(ctx, W - 160, 77);
-  ctx.fillStyle = '#ffdd00';
-  ctx.font = 'bold 16px monospace';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(NUM_FMT.format(state.coinsThisRun), W - 20, 77);
-
-  // ── Spin tokens ───────────────────────────────────────────────────────
-  if (state.tokensThisRun > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    roundRect(ctx, W - 180, 98, 168, 28);
-    ctx.fill();
-    ctx.fillStyle = '#ff88cc';
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`★ ${state.tokensThisRun}`, W - 20, 112);
-  }
-
-  // ── Vehicle panel ─────────────────────────────────────────────────────
-  if (state.vehicle.active && state.vehicle.hp > 0) {
-    const isDrill = state.vehicle.kind === 'drill_rocket';
-    const panelH = isDrill ? 48 : 36;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    roundRect(ctx, 12, 12, 120, panelH);
-    ctx.fill();
-
-    const vnames: Record<string, string> = {
-      bounce_buggy: 'BUGGY',
-      gravity_suit: 'GRAV SUIT',
-      sky_serpent: 'SERPENT',
-      stomp_mech: 'MECH',
-      wave_sub: 'WAVE SUB',
-      drill_rocket: 'DRILL',
-    };
-    const vcolors: Record<string, string> = {
-      bounce_buggy: '#ff7700', gravity_suit: '#8800ff',
-      sky_serpent: '#00cc44', stomp_mech: '#8899aa',
-      wave_sub: '#0088cc',    drill_rocket: '#cc2200',
-    };
-    const col = vcolors[state.vehicle.kind] ?? '#ffffff';
-
-    // Color dot
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(24, 24, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#f5c800';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(vnames[state.vehicle.kind] ?? '?', 34, 24);
+    ctx.fillText('★ BEST', W - 184, 42);
+  }
 
-    if (isDrill) {
-      // Countdown bar: 5s total
-      const totalTicks = CFG.SIM_HZ * 5;
-      const remaining = Math.max(0, 1 - state.vehicle.drillTimer / totalTicks);
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
-      ctx.fillRect(14, 36, 112, 6);
-      ctx.fillStyle = remaining > 0.3 ? '#ff4400' : '#ff8800';
-      ctx.fillRect(14, 36, 112 * remaining, 6);
-      const secsLeft = Math.ceil(remaining * 5);
-      ctx.fillStyle = '#ffaa88';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(`${secsLeft}s`, 128, 39);
+  // Zone progress bar
+  const zoneColors = ['#5599ff', '#ff7700', '#44ccff', '#ff44cc', '#8844ff'];
+  const zoneColor = zoneColors[state.zoneIndex % zoneColors.length] ?? '#5599ff';
+  const withinZone = meters % CFG.ZONE_DIST;
+  const zoneProgress = withinZone / CFG.ZONE_DIST;
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(W - 184, 51, 170, 4);
+  ctx.fillStyle = zoneColor;
+  ctx.fillRect(W - 184, 51, 170 * zoneProgress, 4);
+
+  // ── Coin counter (TOP LEFT — JJR style) ─────────────────────────────
+  if (state.vehicle.active && state.vehicle.hp > 0) {
+    drawVehiclePanel(ctx, state);
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    roundRect(ctx, 10, 10, 160, 50, 8);
+    ctx.fill();
+    drawCoinIcon(ctx, 32, 35);
+    ctx.fillStyle = '#f5c800';
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(NUM_FMT.format(state.coinsThisRun), 50, 35);
+
+    // Spin tokens (small badge)
+    if (state.tokensThisRun > 0) {
+      ctx.fillStyle = '#cc55ff';
+      ctx.font = 'bold 11px monospace';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`★×${state.tokensThisRun}`, 50, 46);
     }
   }
 
-  // ── Mission ticker ────────────────────────────────────────────────────
-  drawMissionTicker(ctx, state.missions, _tick);
+  // ── All 3 mission bars (BOTTOM — always visible, JJR style) ──────────
+  drawMissionBars(ctx, state.missions);
 
   // ── Pause hint ────────────────────────────────────────────────────────
   if (!paused) {
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('ESC = Pause', 12, CFG.WORLD_H - 20);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('ESC = Pause', W - 12, CFG.WORLD_H - 4);
   }
 }
 
-function drawMissionTicker(ctx: CanvasRenderingContext2D, missions: Mission[], tick: number): void {
-  const idx = Math.floor(tick / (CFG.SIM_HZ * 3)) % missions.length;
-  const m = missions[idx];
-  if (!m || m.completed) return;
+function drawVehiclePanel(ctx: CanvasRenderingContext2D, state: WorldState): void {
+  const isDrill = state.vehicle.kind === 'drill_rocket';
+  const panelH = isDrill ? 56 : 44;
 
-  const progress = m.progress / m.target;
-  const desc = getMissionDescription(m);
-
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  roundRect(ctx, 12, CFG.WORLD_H - 60, 280, 40);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  roundRect(ctx, 10, 10, 170, panelH, 8);
   ctx.fill();
 
-  ctx.fillStyle = '#aaaacc';
-  ctx.font = '10px monospace';
+  const vnames: Record<string, string> = {
+    bounce_buggy: 'BOUNCE BUGGY', gravity_suit: 'GRAV SUIT',
+    sky_serpent: 'SKY SERPENT',   stomp_mech: 'STOMP MECH',
+    wave_sub: 'WAVE SUB',         drill_rocket: 'DRILL ROCKET',
+  };
+  const vcolors: Record<string, string> = {
+    bounce_buggy: '#ff8822', gravity_suit: '#aa44ff',
+    sky_serpent: '#22cc55',  stomp_mech: '#99aabb',
+    wave_sub: '#1199dd',     drill_rocket: '#ee3300',
+  };
+  const col = vcolors[state.vehicle.kind] ?? '#ffffff';
+
+  // Color dot
+  const dotGrd = ctx.createRadialGradient(26, 28, 0, 26, 28, 7);
+  dotGrd.addColorStop(0, col);
+  dotGrd.addColorStop(1, col + '44');
+  ctx.fillStyle = dotGrd;
+  ctx.beginPath(); ctx.arc(26, 28, 6, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = col;
+  ctx.font = 'bold 13px monospace';
   ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText(desc.length > 36 ? desc.slice(0, 36) + '…' : desc, 16, CFG.WORLD_H - 56);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(vnames[state.vehicle.kind] ?? '?', 38, 24);
 
-  // Progress bar
-  ctx.fillStyle = '#333355';
-  ctx.fillRect(14, CFG.WORLD_H - 36, 274, 10);
-  ctx.fillStyle = progress >= 1 ? '#00ff88' : '#4488ff';
-  ctx.fillRect(14, CFG.WORLD_H - 36, 274 * Math.min(1, progress), 10);
+  // HP bar
+  const hp = Math.min(1, state.vehicle.hp / 3);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(38, 33, 134, 6);
+  ctx.fillStyle = hp > 0.5 ? '#44dd66' : hp > 0.25 ? '#ffcc00' : '#ff4444';
+  ctx.fillRect(38, 33, 134 * hp, 6);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '10px monospace';
-  ctx.textAlign = 'right';
-  ctx.fillText(`${Math.floor(m.progress)}/${m.target}`, 294, CFG.WORLD_H - 56);
+  if (isDrill) {
+    const totalTicks = CFG.SIM_HZ * 5;
+    const remaining = Math.max(0, 1 - state.vehicle.drillTimer / totalTicks);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(14, 46, 150, 5);
+    ctx.fillStyle = remaining > 0.3 ? '#ff5500' : '#ff9900';
+    ctx.fillRect(14, 46, 150 * remaining, 5);
+    const secsLeft = Math.ceil(remaining * 5);
+    ctx.fillStyle = '#ffaa77';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${secsLeft}s`, 168, 44);
+  }
+}
+
+function drawMissionBars(ctx: CanvasRenderingContext2D, missions: Mission[]): void {
+  const H = CFG.WORLD_H;
+  const barW = 310;
+  const barH = 22;
+  const gap = 3;
+  const totalH = missions.length * (barH + gap) - gap;
+  const startY = H - totalH - 10;
+
+  // Panel background
+  ctx.fillStyle = 'rgba(0,0,0,0.52)';
+  roundRect(ctx, 8, startY - 4, barW + 8, totalH + 8, 6);
+  ctx.fill();
+
+  for (let i = 0; i < missions.length; i++) {
+    const m = missions[i];
+    if (!m) continue;
+    const my = startY + i * (barH + gap);
+    const progress = Math.min(1, m.progress / m.target);
+    const done = m.completed;
+
+    // Row background
+    ctx.fillStyle = done ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.05)';
+    roundRect(ctx, 12, my, barW, barH, 4);
+    ctx.fill();
+
+    // Mission description
+    const desc = getMissionDescription(m);
+    const shortDesc = desc.length > 32 ? desc.slice(0, 32) + '…' : desc;
+    ctx.fillStyle = done ? '#44ff99' : '#ccddff';
+    ctx.font = `${done ? 'bold ' : ''}10px monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(shortDesc, 16, my + barH * 0.38);
+
+    // Progress bar
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(14, my + barH - 6, barW - 4, 4);
+    ctx.fillStyle = done ? '#44ff99' : '#5599ff';
+    ctx.fillRect(14, my + barH - 6, (barW - 4) * progress, 4);
+
+    // Count
+    ctx.fillStyle = done ? '#44ff99' : '#8899cc';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.floor(m.progress)}/${m.target}`, barW + 14, my + barH * 0.38);
+  }
 }
 
 function drawCoinIcon(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  // Glow
-  const glow = ctx.createRadialGradient(x, y, 2, x, y, 12);
-  glow.addColorStop(0, 'rgba(255,220,0,0.4)');
+  const glow = ctx.createRadialGradient(x, y, 2, x, y, 14);
+  glow.addColorStop(0, 'rgba(255,220,0,0.5)');
   glow.addColorStop(1, 'rgba(255,180,0,0)');
   ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(x, y, 12, 0, Math.PI * 2);
-  ctx.fill();
-  // Face
-  ctx.fillStyle = '#ffdd00';
-  ctx.beginPath();
-  ctx.arc(x, y, 8, 0, Math.PI * 2);
-  ctx.fill();
-  // Edge
+  ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f5c800';
+  ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#cc8800';
   ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(x, y, 7.5, 0, Math.PI * 2);
-  ctx.stroke();
-  // Highlight
+  ctx.beginPath(); ctx.arc(x, y, 8.5, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,160,0.55)';
-  ctx.beginPath();
-  ctx.ellipse(x - 2, y - 2, 3.5, 2.5, -0.5, 0, Math.PI * 2);
-  ctx.fill();
-  // Symbol
+  ctx.beginPath(); ctx.ellipse(x - 2, y - 2, 4, 2.5, -0.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#885500';
   ctx.font = 'bold 8px sans-serif';
   ctx.textAlign = 'center';
@@ -206,53 +220,63 @@ export function drawPauseOverlay(
 ): Button[] {
   const W = CFG.WORLD_W, H = CFG.WORLD_H;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillStyle = 'rgba(0,0,0,0.70)';
   ctx.fillRect(0, 0, W, H);
 
+  // Panel
+  ctx.fillStyle = 'rgba(12,16,32,0.96)';
+  roundRect(ctx, W/2 - 230, 50, 460, H - 100, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#3a4a7a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Header
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 48px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('PAUSED', W / 2, 90);
+  ctx.fillText('PAUSED', W / 2, 110);
 
-  // Buttons
   const buttons: Button[] = [
-    { x: W/2 - 165, y: 130, w: 150, h: 48, label: 'RESUME', color: '#1a4a1a', action: 'resume' },
-    { x: W/2 + 15,  y: 130, w: 150, h: 48, label: 'MENU',   color: '#222233', action: 'menu' },
+    { x: W/2 - 180, y: 150, w: 160, h: 48, label: 'RESUME', color: '#1a4a1a', action: 'resume' },
+    { x: W/2 + 20,  y: 150, w: 160, h: 48, label: 'MENU',   color: '#222244', action: 'menu' },
   ];
   drawButtons(ctx, buttons);
 
-  // Mission progress
-  ctx.font = 'bold 16px monospace';
-  ctx.fillStyle = '#8888aa';
+  // Mission progress section
+  ctx.font = 'bold 14px monospace';
+  ctx.fillStyle = '#6677aa';
   ctx.textAlign = 'center';
-  ctx.fillText('MISSIONS', W / 2, 206);
+  ctx.fillText('MISSIONS', W / 2, 222);
 
   for (let i = 0; i < missions.length; i++) {
     const m = missions[i];
     if (!m) continue;
-    const my = 234 + i * 55;
+    const my = 248 + i * 56;
     const progress = m.progress / m.target;
     const desc = getMissionDescription(m);
 
-    ctx.fillStyle = m.completed ? 'rgba(0,255,100,0.2)' : 'rgba(255,255,255,0.08)';
-    roundRect(ctx, W / 2 - 200, my - 20, 400, 44);
+    ctx.fillStyle = m.completed ? 'rgba(0,255,100,0.18)' : 'rgba(255,255,255,0.07)';
+    roundRect(ctx, W / 2 - 210, my - 20, 420, 46, 6);
     ctx.fill();
 
-    ctx.fillStyle = m.completed ? '#00ff88' : '#ccccee';
-    ctx.font = '13px monospace';
+    ctx.fillStyle = m.completed ? '#44ff99' : '#ccddf0';
+    ctx.font = m.completed ? 'bold 13px monospace' : '13px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(desc.length > 42 ? desc.slice(0, 42) + '…' : desc, W / 2 - 190, my - 6);
+    ctx.textBaseline = 'top';
+    ctx.fillText(desc.length > 44 ? desc.slice(0, 44) + '…' : desc, W / 2 - 200, my - 10);
 
-    ctx.fillStyle = '#333355';
-    ctx.fillRect(W / 2 - 190, my + 10, 380, 8);
-    ctx.fillStyle = m.completed ? '#00ff88' : '#4488ff';
-    ctx.fillRect(W / 2 - 190, my + 10, 380 * Math.min(1, progress), 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(W / 2 - 200, my + 10, 400, 8);
+    ctx.fillStyle = m.completed ? '#44ff99' : '#5599ff';
+    ctx.fillRect(W / 2 - 200, my + 10, 400 * Math.min(1, progress), 8);
 
-    ctx.fillStyle = '#888899';
+    ctx.fillStyle = '#6677aa';
     ctx.font = '11px monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(`${Math.floor(m.progress)}/${m.target}`, W / 2 + 190, my - 6);
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${Math.floor(m.progress)}/${m.target}`, W / 2 + 200, my - 10);
   }
 
   return buttons;
