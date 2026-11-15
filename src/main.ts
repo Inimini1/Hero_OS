@@ -15,7 +15,7 @@ import { drawHero } from './render/hero';
 import { drawZappers, drawLasers, drawMissiles, drawPendulums, drawVents } from './render/hazards';
 import { drawParticles, drawCoins, drawSpinTokens, drawVehicleCrates } from './render/particles';
 import { drawHUD, drawPauseOverlay } from './render/hud';
-import { drawFloorAndCeiling, drawVignette, drawZoneFade, applyCamera, tickCamera, createCamera } from './render/effects';
+import { drawFloorAndCeiling, drawVignette, drawZoneFade, drawHitStopFlash, drawZoneBanner, applyCamera, tickCamera, createCamera } from './render/effects';
 import type { CameraState } from './render/effects';
 import { drawMenuScene, drawGameOverScene, drawShopScene, drawMissionsScene, drawSettingsScene, drawTutorial, drawSpinMachine, hitButton, pickSpinPrize } from './render/ui';
 import type { SpinPrize, Button } from './render/ui';
@@ -52,6 +52,8 @@ let spinDone = false;
 let tutorialAlpha = 0;
 let tutorialTimer = 0;
 let isDaily = false;
+let zoneBannerAlpha = 0;
+let zoneBannerName = '';
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 
@@ -299,7 +301,13 @@ function tick(holding: boolean): void {
         case 'vehicle_start': audio.play('vehicle_pickup'); break;
         case 'shield_hit': audio.play('shield_hit'); break;
         case 'mission_complete': audio.play('mission_complete'); break;
-        case 'zone_change': audio.setZone(evt.value ?? 0); break;
+        case 'zone_change': {
+          const zi = evt.value ?? 0;
+          audio.setZone(zi);
+          zoneBannerName = ZONE_THEMES[zi]?.name ?? '';
+          zoneBannerAlpha = 1;
+          break;
+        }
       }
     }
     simState._events = [];
@@ -316,6 +324,11 @@ function tick(holding: boolean): void {
       if (simState.distance > 500) {
         tutorialAlpha = Math.max(0, tutorialAlpha - 0.02);
       }
+    }
+
+    // Zone banner fade
+    if (zoneBannerAlpha > 0) {
+      zoneBannerAlpha = Math.max(0, zoneBannerAlpha - 0.004);
     }
 
     // Trigger game over
@@ -373,14 +386,14 @@ function renderGameScene(interp: number): void {
 
   ctx.save();
 
-  // Camera shake
-  applyCamera(ctx, camera, save.screenShake);
+  // Camera shake + zoom punch
+  applyCamera(ctx, camera, simState.hero.x, simState.hero.y, save.screenShake);
 
   // Background
   drawBackground(ctx, simState.zoneIndex, Math.min(4, simState.zoneIndex + 1), simState.zoneFade, simState.distance);
 
   // Floor / ceiling
-  drawFloorAndCeiling(ctx, simState.zoneIndex);
+  drawFloorAndCeiling(ctx, simState.zoneIndex, simState.distance);
 
   // Hazards
   drawZappers(ctx, simState.zappers);
@@ -411,7 +424,13 @@ function renderGameScene(interp: number): void {
   // Vignette
   drawVignette(ctx, simState.dead, simState.hero.invulnTicks);
 
+  // Hit-stop flash
+  drawHitStopFlash(ctx, simState.hitStop);
+
   ctx.restore();
+
+  // Zone banner (outside camera transform so it's stable)
+  drawZoneBanner(ctx, zoneBannerName, zoneBannerAlpha);
 
   // HUD (no shake)
   if (!simState.dead) {
@@ -443,7 +462,7 @@ function renderMenuScene(): void {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  drawFloorAndCeiling(ctx, 0);
+  drawFloorAndCeiling(ctx, 0, 0);
   drawVignette(ctx, false, 0);
   uiButtons = drawMenuScene(ctx, simState?.tick ?? menuHeroAnim, menuHeroAnim, save);
 }
@@ -458,7 +477,7 @@ function renderGameOverScene(): void {
   grad.addColorStop(1, theme.skyBot);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  drawFloorAndCeiling(ctx, simState.zoneIndex);
+  drawFloorAndCeiling(ctx, simState.zoneIndex, simState.distance);
 
   const meters = Math.floor(simState.distance / CFG.UNITS_PER_METER);
   const reviveCost = reviveUsed ? CFG.REVIVE_BASE_COST * CFG.REVIVE_COST_MULT : CFG.REVIVE_BASE_COST;
