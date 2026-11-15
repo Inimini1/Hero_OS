@@ -191,6 +191,49 @@ export function emitMissileSmoke(pool: Particle[], rng: Rng, x: number, y: numbe
   });
 }
 
+/** Vehicle explosion on break. */
+export function emitVehicleBreak(
+  pool: Particle[], rng: Rng,
+  x: number, y: number,
+  r: number, g: number, b: number
+): void {
+  // 60 debris fragments
+  for (let i = 0; i < 60; i++) {
+    const angle = rng() * Math.PI * 2;
+    const spd = 3 + rng() * 10;
+    const hot = rng() > 0.4;
+    spawnParticle(pool, {
+      kind: 'explosion',
+      x: x + (rng() - 0.5) * 20,
+      y: y + (rng() - 0.5) * 20,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 3,
+      decay: 0.018 + rng() * 0.02,
+      size: hot ? 10 + rng() * 12 : 5 + rng() * 8,
+      r: hot ? r : Math.min(255, r + 60),
+      g: hot ? g : Math.min(255, g + 60),
+      b: hot ? b : Math.min(255, b + 60),
+      gravity: 0.12,
+    });
+  }
+  // 15 vehicle-colored glow particles
+  for (let i = 0; i < 15; i++) {
+    const angle = rng() * Math.PI * 2;
+    const spd = 1 + rng() * 4;
+    spawnParticle(pool, {
+      kind: 'pickup_glow',
+      x: x + (rng() - 0.5) * 10,
+      y: y + (rng() - 0.5) * 10,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 1,
+      decay: 0.025,
+      size: 16 + rng() * 20,
+      r, g, b,
+      gravity: 0,
+    });
+  }
+}
+
 /** Count active particles. */
 export function countActiveParticles(pool: Particle[]): number {
   let n = 0;

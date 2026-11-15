@@ -66,15 +66,14 @@ export function drawHUD(
     ctx.fillText(`★ ${state.tokensThisRun}`, W - 20, 112);
   }
 
-  // ── Vehicle icon ──────────────────────────────────────────────────────
+  // ── Vehicle panel ─────────────────────────────────────────────────────
   if (state.vehicle.active && state.vehicle.hp > 0) {
+    const isDrill = state.vehicle.kind === 'drill_rocket';
+    const panelH = isDrill ? 48 : 36;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    roundRect(ctx, 12, 12, 100, 36);
+    roundRect(ctx, 12, 12, 120, panelH);
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
+
     const vnames: Record<string, string> = {
       bounce_buggy: 'BUGGY',
       gravity_suit: 'GRAV SUIT',
@@ -83,11 +82,39 @@ export function drawHUD(
       wave_sub: 'WAVE SUB',
       drill_rocket: 'DRILL',
     };
-    ctx.fillText(vnames[state.vehicle.kind] ?? '?', 20, 30);
+    const vcolors: Record<string, string> = {
+      bounce_buggy: '#ff7700', gravity_suit: '#8800ff',
+      sky_serpent: '#00cc44', stomp_mech: '#8899aa',
+      wave_sub: '#0088cc',    drill_rocket: '#cc2200',
+    };
+    const col = vcolors[state.vehicle.kind] ?? '#ffffff';
 
-    // HP bar
-    ctx.fillStyle = '#00ff88';
-    ctx.fillRect(14, 40, 92 * state.vehicle.hp, 4);
+    // Color dot
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(24, 24, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(vnames[state.vehicle.kind] ?? '?', 34, 24);
+
+    if (isDrill) {
+      // Countdown bar: 5s total
+      const totalTicks = CFG.SIM_HZ * 5;
+      const remaining = Math.max(0, 1 - state.vehicle.drillTimer / totalTicks);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(14, 36, 112, 6);
+      ctx.fillStyle = remaining > 0.3 ? '#ff4400' : '#ff8800';
+      ctx.fillRect(14, 36, 112 * remaining, 6);
+      const secsLeft = Math.ceil(remaining * 5);
+      ctx.fillStyle = '#ffaa88';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${secsLeft}s`, 128, 39);
+    }
   }
 
   // ── Mission ticker ────────────────────────────────────────────────────

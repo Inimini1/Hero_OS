@@ -105,11 +105,13 @@ function tickBounceBuggy(v: Vehicle, hero: Hero, holding: boolean): void {
   hero.y += v.vy;
   if (hero.y >= CFG.FLOOR_Y) {
     hero.y = CFG.FLOOR_Y;
-    v.vy = 0;
+    // Bounce off floor: reverse vy with damping
+    v.vy = -Math.abs(v.vy) * 0.4;
+    if (Math.abs(v.vy) < 1) v.vy = 0;
   }
   if (hero.y <= CFG.CEILING_Y) {
     hero.y = CFG.CEILING_Y;
-    v.vy = Math.abs(v.vy) * 0.5;
+    v.vy = Math.abs(v.vy) * 0.4;
   }
 }
 
@@ -173,10 +175,7 @@ function tickDrillRocket(v: Vehicle, hero: Hero): void {
   v.drillTimer++;
   // Keep hero at mid height, ignore all hazards for 5 seconds
   hero.y += (CFG.WORLD_H / 2 - hero.y) * 0.05;
-  if (v.drillTimer > CFG.SIM_HZ * 5) {
-    // End drill
-    v.hp = 0;
-  }
+  // world.ts detects drillTimer expiry and fires vehicle_end before zeroing hp
 }
 
 /** Hit a vehicle (absorbs one hit). Returns true if vehicle breaks. */

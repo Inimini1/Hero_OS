@@ -54,6 +54,8 @@ let tutorialTimer = 0;
 let isDaily = false;
 let zoneBannerAlpha = 0;
 let zoneBannerName = '';
+let vehicleBannerAlpha = 0;
+let vehicleBannerName = '';
 
 interface CoinPopup { val: number; life: number; }
 let coinPopups: CoinPopup[] = [];
@@ -306,7 +308,17 @@ function tick(holding: boolean): void {
           break;
         case 'spin_token_collected': audio.play('token_collect'); break;
         case 'hero_died': audio.play('explosion'); break;
-        case 'vehicle_start': audio.play('vehicle_pickup'); break;
+        case 'vehicle_start': {
+          audio.play('vehicle_pickup');
+          const vnames: Record<string, string> = {
+            bounce_buggy: 'BOUNCE BUGGY', gravity_suit: 'GRAVITY SUIT',
+            sky_serpent: 'SKY SERPENT', stomp_mech: 'STOMP MECH',
+            wave_sub: 'WAVE SUB', drill_rocket: 'DRILL ROCKET',
+          };
+          vehicleBannerName = vnames[simState!.vehicle.kind] ?? 'VEHICLE';
+          vehicleBannerAlpha = 1;
+          break;
+        }
         case 'shield_hit': audio.play('shield_hit'); break;
         case 'mission_complete': audio.play('mission_complete'); break;
         case 'zone_change': {
@@ -337,6 +349,11 @@ function tick(holding: boolean): void {
     // Zone banner fade
     if (zoneBannerAlpha > 0) {
       zoneBannerAlpha = Math.max(0, zoneBannerAlpha - 0.004);
+    }
+
+    // Vehicle banner fade
+    if (vehicleBannerAlpha > 0) {
+      vehicleBannerAlpha = Math.max(0, vehicleBannerAlpha - 0.005);
     }
 
     // Coin popup fade
@@ -443,6 +460,9 @@ function renderGameScene(interp: number): void {
 
   // Zone banner (outside camera transform so it's stable)
   drawZoneBanner(ctx, zoneBannerName, zoneBannerAlpha);
+
+  // Vehicle pickup banner
+  if (vehicleBannerAlpha > 0) drawVehicleBanner(ctx, vehicleBannerName, vehicleBannerAlpha);
 
   // HUD (no shake)
   if (!simState.dead) {
@@ -551,6 +571,33 @@ function renderSpinScene(): void {
   ctx.fillRect(0, 0, W, H);
   uiButtons = drawSpinMachine(ctx, spinProgress, spinPrize, spinActive);
   void H;
+}
+
+function drawVehicleBanner(ctx: CanvasRenderingContext2D, name: string, alpha: number): void {
+  if (alpha <= 0) return;
+  const W = CFG.WORLD_W;
+  const y = 224; // below zone banner (which is at 160)
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const bw = 440, bh = 46;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.roundRect(W / 2 - bw / 2, y - bh / 2, bw, bh, 6);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffdd88';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('VEHICLE PICKUP', W / 2, y - 12);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText(name, W / 2, y + 8);
+
+  ctx.restore();
 }
 
 // ── Main loop start ────────────────────────────────────────────────────────

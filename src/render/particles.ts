@@ -219,7 +219,7 @@ function drawVehicleCrate(ctx: CanvasRenderingContext2D, c: VehicleCrate): void 
   ctx.moveTo(0, -24); ctx.lineTo(0, 24);
   ctx.stroke();
 
-  // Vehicle icon color
+  // Vehicle icon color dot + abbreviation
   const iconColors: Record<string, string> = {
     bounce_buggy: '#ff7700',
     gravity_suit: '#8800ff',
@@ -228,10 +228,21 @@ function drawVehicleCrate(ctx: CanvasRenderingContext2D, c: VehicleCrate): void 
     wave_sub: '#0088cc',
     drill_rocket: '#cc2200',
   };
-  ctx.fillStyle = iconColors[c.kind] ?? '#888888';
+  const iconLabels: Record<string, string> = {
+    bounce_buggy: 'BB', gravity_suit: 'GS',
+    sky_serpent: 'SS', stomp_mech: 'SM',
+    wave_sub: 'WS', drill_rocket: 'DR',
+  };
+  const col = iconColors[c.kind] ?? '#888888';
+  ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.arc(0, 0, 10, 0, Math.PI * 2);
+  ctx.arc(0, 0, 11, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(iconLabels[c.kind] ?? '??', 0, 0);
 
   // Glow
   ctx.globalCompositeOperation = 'lighter';

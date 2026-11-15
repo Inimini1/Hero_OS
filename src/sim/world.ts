@@ -13,6 +13,7 @@ import { createCoinPool, createSpinTokenPool, tickCoins } from './coins';
 import {
   createParticlePool, tickParticles,
   emitJetpackFire, emitCoinCollect, emitExplosion, emitPickupGlow, emitMissileSmoke,
+  emitVehicleBreak,
 } from './particles';
 import { generateMissions, updateMissions } from './missions';
 import { spawnNextChunk, getDifficulty, getZoneIndex, cullOffscreen } from './director';
@@ -199,15 +200,32 @@ export function tickWorld(state: WorldState, holding: boolean): void {
       state.vehicle.vy = 0;
       state.vehicle.flipped = false;
       state.vehicle.drillTimer = 0;
+      state.vehicle.serpentY = state.hero.y;
+      state.vehicle.mechFrame = 0;
       state.vehicleUses++;
       emitPickupGlow(state.particles, state.chunkRng, state.hero.x, state.hero.y);
       state._events.push({ type: 'vehicle_start', id: state.vehicle.kind as unknown as number });
     }
   }
 
-  // ── Stomp mech destroys missiles ──────────────────────────────────────
-  if (state.vehicle.active && state.vehicle.kind === 'stomp_mech' && state.hero.y >= CFG.FLOOR_Y - 2) {
-    destroyMissilesAt(state.missiles, state.hero.x, state.hero.y, 80);
+  // ── Drill rocket timer expiry ─────────────────────────────────────────
+  if (inVehicle && state.vehicle.kind === 'drill_rocket' && state.vehicle.drillTimer > CFG.SIM_HZ * 5) {
+    endVehicle(state, 204, 34, 0);
+  }
+
+  // ── Stomp mech: hard-landing clears hazards once per landing ─────────
+  if (inVehicle && state.vehicle.kind === 'stomp_mech') {
+    const prevVy = state.vehicle.vy;
+    if (state.hero.y >= CFG.FLOOR_Y && prevVy > 6) {
+      destroyMissilesAt(state.missiles, state.hero.x, state.hero.y, 120);
+      // Clear zappers in radius on hard stomp
+      for (const z of state.zappers) {
+        if (!z.active) continue;
+        const dx = z.x - state.hero.x;
+        const dy = z.y - state.hero.y;
+        if (dx * dx + dy * dy < 160 * 160) z.active = false;
+      }
+    }
   }
 
   // ── Collision detection ───────────────────────────────────────────────
@@ -226,7 +244,7 @@ export function tickWorld(state: WorldState, holding: boolean): void {
         // Vehicle absorbs hit
         const broke = hitVehicle(state.vehicle);
         if (broke) {
-          state._events.push({ type: 'vehicle_end' });
+          endVehicle(state, ...vehicleBreakColor(state.vehicle.kind));
           state.hero.invulnTicks = CFG.SHIELD_INVULN_TICKS;
         }
       } else if (hasShield(state.gadgets) && state.hero.invulnTicks === 0) {
@@ -297,4 +315,23 @@ export function tickWorld(state: WorldState, holding: boolean): void {
     state.nextChunkX = spawnNextChunk(state, state.chunkRng, state.distance);
   }
   cullOffscreen(state);
+}
+
+function vehicleBreakColor(kind: string): [number, number, number] {
+  switch (kind) {
+    case 'bounce_buggy':  return [255, 119, 0];
+    case 'gravity_suit':  return [136, 0, 255];
+    case 'sky_serpent':   return [0, 204, 68];
+    case 'stomp_mech':    return [136, 153, 170];
+    case 'wave_sub':      return [0, 136, 204];
+    case 'drill_rocket':  return [204, 34, 0];
+    default:              return [200, 200, 200];
+  }
+}
+
+function endVehicle(state: WorldState, r: number, g: number, b: number): void {
+  emitVehicleBreak(state.particles, state.chunkRng, state.hero.x, state.hero.y, r, g, b);
+  state.vehicle.hp = 0;
+  state.vehicle.breakTimer = 0;
+  state._events.push({ type: 'vehicle_end' });
 }
