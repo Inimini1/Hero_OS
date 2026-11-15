@@ -60,6 +60,7 @@ let shopTab = 0;
 
 interface CoinPopup { val: number; life: number; }
 let coinPopups: CoinPopup[] = [];
+let _lastFrameMs = 0;
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ function startRun(daily = false): void {
   isDaily = daily;
   const seed = daily ? dailySeed() : Math.floor(Math.random() * 0xffffffff);
   const gadgets = save.gadgetSlots.map(s => ({ id: s.id, level: s.id ? (save.gadgetLevels[s.id] ?? 0) : 0 })) as [ReturnType<typeof createGadgetSlot>, ReturnType<typeof createGadgetSlot>];
-  simState = createWorld(seed, gadgets);
+  simState = createWorld(seed, gadgets, save.reducedMotion);
   simState.hero.outfit = save.outfit;
   simState.hero.jetpackStyle = save.jetpackStyle;
   simState.missions = save.pendingMissions.length >= 3
@@ -127,14 +128,18 @@ function goToGameOver(): void {
   gameoverShown = true;
   const state = simState!;
   const meters = Math.floor(state.distance / CFG.UNITS_PER_METER);
-  isNewBest = recordRun(save, meters, state.coinsThisRun, state.tokensThisRun, state.missions.filter(m => m.completed).length);
+  const completedMissions = state.missions.filter(m => m.completed);
+  const missionRewardCoins = completedMissions.reduce((s, m) => s + m.rewardCoins, 0);
+  isNewBest = recordRun(save, meters, state.coinsThisRun, state.tokensThisRun, completedMissions.length, missionRewardCoins);
   if (isNewBest) audio.play('new_best');
-  // Update pending missions (replace completed ones)
-  if (state.missions.some(m => m.completed)) {
-    const newMissions = generateMissions(save.rank, mulberry32(Date.now() ^ 0xbeef));
-    save.pendingMissions = state.missions.map((m, i) => m.completed ? (newMissions[i] ?? m) : m) as unknown as SaveData['pendingMissions'];
-    writeSave(save);
-  }
+  // Replace completed missions with fresh ones
+  const newMissions = generateMissions(save.rank, mulberry32(Date.now() ^ 0xbeef));
+  let newIdx = 0;
+  save.pendingMissions = state.missions.map(m => {
+    if (m.completed) return newMissions[newIdx++] ?? m;
+    return m;
+  }) as unknown as SaveData['pendingMissions'];
+  writeSave(save);
   scene = 'gameover';
 }
 
@@ -414,6 +419,7 @@ function tick(holding: boolean): void {
 // ── Render ─────────────────────────────────────────────────────────────────
 
 function render(interp: number, dt: number): void {
+  _lastFrameMs = dt * 1000;
   debug.recordFrame(dt);
 
   ctx.clearRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
@@ -468,14 +474,21 @@ function renderGameScene(interp: number): void {
   drawCoins(ctx, simState.coins, simState.tick);
   drawSpinTokens(ctx, simState.spinTokens);
 
-  // Particles (behind hero)
-  drawParticles(ctx, simState.particles.filter(p => p.kind !== 'pickup_glow'));
+  // Particles (behind hero) — skip smoke/casing when fps is low
+  const slowFrame = _lastFrameMs > CFG.PARTICLE_ADAPTIVE_THRESHOLD;
+  const bgParticles = simState.particles.filter(p => {
+    if (!p.active) return false;
+    if (p.kind === 'pickup_glow') return false;
+    if (slowFrame && (p.kind === 'jetpack_smoke' || p.kind === 'casing' || p.kind === 'missile_smoke')) return false;
+    return true;
+  });
+  drawParticles(ctx, bgParticles);
 
   // Hero
   drawHero(ctx, simState.hero, simState.vehicle, interp, prevHeroY, simState.tick);
 
   // Foreground particles
-  drawParticles(ctx, simState.particles.filter(p => p.kind === 'pickup_glow'));
+  drawParticles(ctx, simState.particles.filter(p => p.active && p.kind === 'pickup_glow'));
 
   // Zone fade
   drawZoneFade(ctx, simState.zoneFade);

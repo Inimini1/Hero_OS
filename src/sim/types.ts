@@ -178,7 +178,10 @@ export type MissionType =
   | 'dodge_missiles'
   | 'use_vehicle'
   | 'fly_meters_no_coins'
-  | 'collect_coins_one_run';
+  | 'collect_coins_one_run'
+  | 'near_miss'
+  | 'collect_tokens'
+  | 'no_vehicle_run';
 
 export interface Mission {
   id: number;
@@ -238,6 +241,10 @@ export interface WorldState {
   tokensThisRun: number;
   missilesDodged: number;
   vehicleUses: number;
+  nearMissThisRun: number;
+
+  // Settings that affect sim
+  reducedMotion: boolean;
 
   // Zone
   zoneIndex: number;    // 0-4

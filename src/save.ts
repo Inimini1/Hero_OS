@@ -105,23 +105,27 @@ export function recordRun(
   distanceMeters: number,
   coinsEarned: number,
   tokensEarned: number,
-  completedMissions: number
+  completedMissions: number,
+  missionRewardCoins = 0
 ): boolean {
   const newBest = distanceMeters > save.bestDistance;
   if (newBest) save.bestDistance = distanceMeters;
-  save.coins += coinsEarned;
+  save.coins += coinsEarned + missionRewardCoins;
   save.spinTokens += tokensEarned;
   save.totalRuns++;
   save.totalDistance += distanceMeters;
   save.totalCoins += coinsEarned;
   save.rankProgress += completedMissions;
-  if (save.rankProgress >= 3) {
+  while (save.rankProgress >= CFG_MISSIONS_PER_RANK) {
     save.rank++;
-    save.rankProgress -= 3;
+    save.rankProgress -= CFG_MISSIONS_PER_RANK;
+    save.coins += 100 * save.rank; // rank-up bonus
   }
   writeSave(save);
   return newBest;
 }
+
+const CFG_MISSIONS_PER_RANK = 3;
 
 /** Spend coins. Returns true if successful. */
 export function spendCoins(save: SaveData, amount: number): boolean {

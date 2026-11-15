@@ -46,6 +46,24 @@ export const MISSION_TEMPLATES: MissionTemplate[] = [
     rewardFn: t => Math.round(t * 1.5),
     description: t => `Fly ${t} meters without collecting any coins`,
   },
+  {
+    type: 'near_miss',
+    targetFn: (rank, rng) => rngInt(rng, 2 + rank, 6 + rank * 2),
+    rewardFn: t => t * 80,
+    description: t => `Have ${t} near misses with hazards`,
+  },
+  {
+    type: 'collect_tokens',
+    targetFn: (rank, rng) => rngInt(rng, 1 + rank, 3 + rank),
+    rewardFn: t => t * 200,
+    description: t => `Collect ${t} spin token${t > 1 ? 's' : ''} in one run`,
+  },
+  {
+    type: 'no_vehicle_run',
+    targetFn: (rank, rng) => rngInt(rng, 300 + rank * 100, 600 + rank * 200),
+    rewardFn: t => Math.round(t * 1.2),
+    description: t => `Fly ${t} meters without using any vehicle`,
+  },
 ];
 
 let _nextMissionId = 1;
@@ -83,7 +101,10 @@ export function updateMissions(
   metersThisTick: number,
   missilesDodgedThisTick: number,
   vehicleUsedThisTick: boolean,
-  coinsThisRun: number
+  coinsThisRun: number,
+  nearMissThisTick = 0,
+  tokensThisTick = 0,
+  vehicleUsesTotal = 0
 ): number {
   let completed = 0;
   for (const m of missions) {
@@ -106,7 +127,20 @@ export function updateMissions(
         if (coinsThisRun === 0) {
           m.progress = Math.min(m.target, m.progress + metersThisTick);
         } else {
-          m.progress = 0; // reset if any coin collected
+          m.progress = 0;
+        }
+        break;
+      case 'near_miss':
+        if (nearMissThisTick > 0) m.progress = Math.min(m.target, m.progress + nearMissThisTick);
+        break;
+      case 'collect_tokens':
+        if (tokensThisTick > 0) m.progress = Math.min(m.target, m.progress + tokensThisTick);
+        break;
+      case 'no_vehicle_run':
+        if (vehicleUsesTotal === 0) {
+          m.progress = Math.min(m.target, m.progress + metersThisTick);
+        } else {
+          m.progress = 0;
         }
         break;
     }

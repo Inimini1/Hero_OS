@@ -19,7 +19,7 @@ import { generateMissions, updateMissions } from './missions';
 import { spawnNextChunk, getDifficulty, getZoneIndex, cullOffscreen } from './director';
 import { getMagnetRadius, hasShield, getCoinMultiplier, getSpeedBoostDist, createGadgetSlot } from './gadgets';
 
-export function createWorld(seed: number, gadgets?: [GadgetSlot, GadgetSlot]): WorldState {
+export function createWorld(seed: number, gadgets?: [GadgetSlot, GadgetSlot], reducedMotion = false): WorldState {
   const rng = mulberry32(seed);
   const slots: [GadgetSlot, GadgetSlot] = gadgets ?? [createGadgetSlot(), createGadgetSlot()];
 
@@ -54,6 +54,9 @@ export function createWorld(seed: number, gadgets?: [GadgetSlot, GadgetSlot]): W
     tokensThisRun: 0,
     missilesDodged: 0,
     vehicleUses: 0,
+    nearMissThisRun: 0,
+
+    reducedMotion,
 
     zoneIndex: 0,
     zoneFade: 0,
@@ -265,6 +268,7 @@ export function tickWorld(state: WorldState, holding: boolean): void {
   }
 
   // ── Near-miss detection ───────────────────────────────────────────────
+  let nearMissThisTick = 0;
   if (!state.dead && state.hero.invulnTicks <= 0) {
     const hx = state.hero.x, hy = state.hero.y;
     const nearMiss =
@@ -272,6 +276,8 @@ export function tickWorld(state: WorldState, holding: boolean): void {
       checkLaserNearMiss(state.lasers, hx, hy, CFG.HERO_HIT_RADIUS) ||
       checkMissileNearMiss(state.missiles, hx, hy, CFG.HERO_HIT_RADIUS);
     if (nearMiss) {
+      nearMissThisTick = 1;
+      state.nearMissThisRun++;
       state._events.push({ type: 'near_miss' });
     }
   }
@@ -284,7 +290,7 @@ export function tickWorld(state: WorldState, holding: boolean): void {
   }
 
   // ── Particles ─────────────────────────────────────────────────────────
-  if (!state.dead) {
+  if (!state.dead && !state.reducedMotion) {
     emitJetpackFire(
       state.particles, state.chunkRng,
       state.hero.x, state.hero.y,
@@ -301,7 +307,10 @@ export function tickWorld(state: WorldState, holding: boolean): void {
     metersThisTick,
     newlyDodged,
     crateIdx >= 0,
-    state.coinsThisRun
+    state.coinsThisRun,
+    nearMissThisTick,
+    coinResult.spinTokensCollected,
+    state.vehicleUses
   );
   if (completed > 0) {
     state._events.push({ type: 'mission_complete', value: completed });
