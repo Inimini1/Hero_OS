@@ -6,7 +6,7 @@ import { loadSave, writeSave, recordRun, spendCoins } from './save';
 import type { SaveData } from './save';
 import { createWorld, tickWorld } from './sim/world';
 import type { WorldState } from './sim/types';
-import { createGadgetSlot } from './sim/gadgets';
+import { createGadgetSlot, hasExtraRevive, GADGET_DEFS } from './sim/gadgets';
 import { generateMissions } from './sim/missions';
 import { mulberry32, dailySeed } from './prng';
 import { setupCanvas } from './render/canvas';
@@ -17,7 +17,7 @@ import { drawParticles, drawCoins, drawSpinTokens, drawVehicleCrates } from './r
 import { drawHUD, drawPauseOverlay } from './render/hud';
 import { drawFloorAndCeiling, drawVignette, drawZoneFade, drawHitStopFlash, drawZoneBanner, applyCamera, tickCamera, createCamera } from './render/effects';
 import type { CameraState } from './render/effects';
-import { drawMenuScene, drawGameOverScene, drawShopScene, drawMissionsScene, drawSettingsScene, drawTutorial, drawSpinMachine, hitButton, pickSpinPrize } from './render/ui';
+import { drawMenuScene, drawGameOverScene, drawShopScene, drawMissionsScene, drawSettingsScene, drawTutorial, drawSpinMachine, hitButton, pickSpinPrize, OUTFIT_COSTS, JETPACK_COSTS } from './render/ui';
 import type { SpinPrize, Button } from './render/ui';
 import { DebugOverlay } from './debug';
 
@@ -56,6 +56,7 @@ let zoneBannerAlpha = 0;
 let zoneBannerName = '';
 let vehicleBannerAlpha = 0;
 let vehicleBannerName = '';
+let shopTab = 0;
 
 interface CoinPopup { val: number; life: number; }
 let coinPopups: CoinPopup[] = [];
@@ -145,9 +146,9 @@ function togglePause(): void {
 
 function tryRevive(): void {
   if (!simState || reviveUsed) return;
-  const cost = save.coins < CFG.REVIVE_BASE_COST ? 0 : CFG.REVIVE_BASE_COST;
-  const actualCost = reviveUsed ? CFG.REVIVE_BASE_COST * CFG.REVIVE_COST_MULT : CFG.REVIVE_BASE_COST;
-  if (!spendCoins(save, actualCost)) return;
+  const isFree = hasExtraRevive(save.gadgetSlots);
+  if (!isFree && !spendCoins(save, CFG.REVIVE_BASE_COST)) return;
+  if (isFree) writeSave(save);
   reviveUsed = true;
   simState.dead = false;
   simState.hero.state = 'flying';
@@ -157,7 +158,6 @@ function tryRevive(): void {
   gameoverShown = false;
   audio.play('revive');
   scene = 'run';
-  void cost;
 }
 
 function handleUIAction(action: string): void {
@@ -165,7 +165,7 @@ function handleUIAction(action: string): void {
   switch (action) {
     case 'play': startRun(false); break;
     case 'daily': startRun(true); break;
-    case 'shop': scene = 'shop'; break;
+    case 'shop': scene = 'shop'; shopTab = 0; break;
     case 'missions': scene = 'missions'; break;
     case 'settings': scene = 'settings'; break;
     case 'back': scene = 'menu'; break;
@@ -208,7 +208,7 @@ function handleUIActionSync(action: string): void {
   switch (action) {
     case 'play': startRun(false); break;
     case 'daily': startRun(true); break;
-    case 'shop': scene = 'shop'; break;
+    case 'shop': scene = 'shop'; shopTab = 0; break;
     case 'missions': scene = 'missions'; break;
     case 'settings': scene = 'settings'; break;
     case 'back': scene = 'menu'; break;
@@ -218,6 +218,8 @@ function handleUIActionSync(action: string): void {
     case 'spin': startSpin(); break;
     case 'continue': scene = 'menu'; break;
     case 'resume': if (scene === 'paused') togglePause(); break;
+    case 'unequip_s0': save.gadgetSlots[0] = { id: null, level: 0 }; writeSave(save); break;
+    case 'unequip_s1': save.gadgetSlots[1] = { id: null, level: 0 }; writeSave(save); break;
     case 'music_vol_up': save.musicVolume = Math.min(1, save.musicVolume + 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
     case 'music_vol_down': save.musicVolume = Math.max(0, save.musicVolume - 0.1); audio.setMusicVolume(save.musicVolume); writeSave(save); break;
     case 'sfx_vol_up': save.sfxVolume = Math.min(1, save.sfxVolume + 0.1); audio.setSfxVolume(save.sfxVolume); writeSave(save); break;
@@ -228,26 +230,54 @@ function handleUIActionSync(action: string): void {
     case 'toggle_lh': save.leftHanded = !save.leftHanded; writeSave(save); break;
     case 'toggle_mute': save.muted = !save.muted; audio.setMuted(save.muted); writeSave(save); break;
     default:
-      if (action.startsWith('outfit_')) {
+      if (action.startsWith('tab_')) {
+        shopTab = parseInt(action.slice(4));
+      } else if (action.startsWith('outfit_')) {
         const idx = parseInt(action.slice(7));
         if (save.unlockedOutfits.includes(idx)) { save.outfit = idx; writeSave(save); }
       } else if (action.startsWith('jetpack_')) {
         const idx = parseInt(action.slice(8));
         if (save.unlockedJetpackStyles.includes(idx)) { save.jetpackStyle = idx; writeSave(save); }
+      } else if (action.startsWith('unlock_outfit_')) {
+        const idx = parseInt(action.slice(14));
+        const cost = OUTFIT_COSTS[idx] ?? 0;
+        if (cost > 0 && spendCoins(save, cost)) {
+          if (!save.unlockedOutfits.includes(idx)) save.unlockedOutfits.push(idx);
+          save.outfit = idx;
+          writeSave(save);
+          audio.play('ui_confirm');
+        }
+      } else if (action.startsWith('unlock_jetpack_')) {
+        const idx = parseInt(action.slice(15));
+        const cost = JETPACK_COSTS[idx] ?? 0;
+        if (cost > 0 && spendCoins(save, cost)) {
+          if (!save.unlockedJetpackStyles.includes(idx)) save.unlockedJetpackStyles.push(idx);
+          save.jetpackStyle = idx;
+          writeSave(save);
+          audio.play('ui_confirm');
+        }
+      } else if (action.startsWith('equip_s0_')) {
+        const gid = action.slice(9);
+        const lv = (save.gadgetLevels as Record<string, number>)[gid] ?? 0;
+        save.gadgetSlots[0] = { id: gid as Parameters<typeof hasExtraRevive>[0][0]['id'], level: lv };
+        writeSave(save);
+      } else if (action.startsWith('equip_s1_')) {
+        const gid = action.slice(9);
+        const lv = (save.gadgetLevels as Record<string, number>)[gid] ?? 0;
+        save.gadgetSlots[1] = { id: gid as Parameters<typeof hasExtraRevive>[0][0]['id'], level: lv };
+        writeSave(save);
       } else if (action.startsWith('gadget_')) {
-        import('./sim/gadgets').then(({ GADGET_DEFS }) => {
-          const gadgetId = action.slice(7);
-          const level = (save.gadgetLevels as Record<string, number>)[gadgetId] ?? 0;
-          const def = GADGET_DEFS.find(d => d.id === gadgetId);
-          if (def && level < def.maxLevel) {
-            const cost = def.baseCost * (level + 1);
-            if (spendCoins(save, cost)) {
-              (save.gadgetLevels as Record<string, number>)[gadgetId] = level + 1;
-              writeSave(save);
-              audio.play('ui_confirm');
-            }
+        const gadgetId = action.slice(7);
+        const level = (save.gadgetLevels as Record<string, number>)[gadgetId] ?? 0;
+        const def = GADGET_DEFS.find(d => d.id === gadgetId);
+        if (def && level < def.maxLevel) {
+          const cost = def.baseCost * (level + 1);
+          if (spendCoins(save, cost)) {
+            (save.gadgetLevels as Record<string, number>)[gadgetId] = level + 1;
+            writeSave(save);
+            audio.play('ui_confirm');
           }
-        });
+        }
       }
   }
 }
@@ -525,7 +555,8 @@ function renderGameOverScene(): void {
   drawFloorAndCeiling(ctx, simState.zoneIndex, simState.distance);
 
   const meters = Math.floor(simState.distance / CFG.UNITS_PER_METER);
-  const reviveCost = reviveUsed ? CFG.REVIVE_BASE_COST * CFG.REVIVE_COST_MULT : CFG.REVIVE_BASE_COST;
+  const isFreeRevive = hasExtraRevive(save.gadgetSlots) && !reviveUsed;
+  const reviveCost = isFreeRevive ? 0 : CFG.REVIVE_BASE_COST;
   uiButtons = drawGameOverScene(
     ctx,
     meters, simState.coinsThisRun, simState.tokensThisRun,
@@ -543,7 +574,7 @@ function renderShopScene(): void {
   grad.addColorStop(1, '#1a1a2e');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  uiButtons = drawShopScene(ctx, save, 0);
+  uiButtons = drawShopScene(ctx, save, shopTab);
 }
 
 function renderMissionsScene(): void {

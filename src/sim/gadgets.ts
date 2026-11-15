@@ -94,3 +94,7 @@ export function getSpeedBoostDist(slots: [GadgetSlot, GadgetSlot]): number {
   }
   return 0;
 }
+
+export function hasExtraRevive(slots: [GadgetSlot, GadgetSlot]): boolean {
+  return slots.some(s => s.id === 'extra_revive');
+}
